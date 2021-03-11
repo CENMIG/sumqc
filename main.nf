@@ -79,6 +79,7 @@ workflow {
   EXTRACT_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.flatten())
   CREATE_QCTABLE_BEFORE_TRIM(EXTRACT_FASTQC_BEFORE_TRIM.out.collect())
   MULTIQC_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.collect())
+
   // STEP 2: Cleaning
   TRIM(
     read_pairs,
@@ -89,11 +90,14 @@ workflow {
   EXTRACT_TRIM_LOG(TRIM.out[1])
   EXTRACT_TRIM_LOG.out.view()
   CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
+
   // STEP 3: Quality check after cleaning
   FASTQC_AFTER_TRIM(TRIM.out[0])
   EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
   EXTRACT_FASTQC_AFTER_TRIM.out.collect()| CREATE_QCTABLE_AFTER_TRIM
   MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
+
+  // STEP 4: Get all data from step 1 and 3 into single table  
   MERGE_QCTABLE(
     CREATE_QCTABLE_BEFORE_TRIM.out,
     CREATE_QCTABLE_AFTER_TRIM.out
