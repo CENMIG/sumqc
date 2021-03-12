@@ -91,19 +91,32 @@ workflow {
   TRIM.out[1].view()
   EXTRACT_TRIM_LOG(TRIM.out[2])
   CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
-  // STEP 2A: 
-  MERGE_UNPAIRED_READ(TRIM.out[1])
-  MERGE_UNPAIRED_READ.out.view()
+  
   // STEP 3: Quality check after cleaning
-  FASTQC_AFTER_TRIM(TRIM.out[0],TRIM.out[1])
-  EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
-  EXTRACT_FASTQC_AFTER_TRIM.out.collect()| CREATE_QCTABLE_AFTER_TRIM
-  MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
-
-  // STEP 4: Get all data from step 1 and 3 into single table  
-  MERGE_QCTABLE(
+  if(params.mergeUnpair) {
+    MERGE_UNPAIRED_READ(TRIM.out[1])
+    MERGE_UNPAIRED_READ.out.view()
+    FASTQC_AFTER_TRIM(TRIM.out[0],MERGE_UNPAIRED_READ.out.collect())
+    EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
+    EXTRACT_FASTQC_AFTER_TRIM.out.collect()| CREATE_QCTABLE_AFTER_TRIM
+    MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
+    MERGE_QCTABLE(
     CREATE_QCTABLE_BEFORE_TRIM.out,
     CREATE_QCTABLE_AFTER_TRIM.out
     )
+  }
+  else{
+    FASTQC_AFTER_TRIM(TRIM.out[0],TRIM.out[1])
+    EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
+    EXTRACT_FASTQC_AFTER_TRIM.out.collect()| CREATE_QCTABLE_AFTER_TRIM
+    MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
+    MERGE_QCTABLE(
+    CREATE_QCTABLE_BEFORE_TRIM.out,
+    CREATE_QCTABLE_AFTER_TRIM.out
+    )
+  }
+
+  // STEP 4: Get all data from step 1 and 3 into single table  
+  
 
 }
