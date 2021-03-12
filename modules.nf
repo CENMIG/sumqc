@@ -9,7 +9,7 @@
  */
 
 process FASTQC_BEFORE_TRIM {
-  publishDir "$params.results/fastqc", mode: 'copy'
+  publishDir "$params.results/fastqc/raw", mode: 'copy'
   tag "$id"
 
   input:
@@ -137,11 +137,11 @@ process TRIM {
 
   input:
     tuple val(id), path(reads)
-    path adapter
     val trimming_option
 
   output:
-    tuple val(id), path("*.fq.gz")
+    tuple val(id), path("*P.fq.gz")
+    tuple val(id), path("*U.fq.gz")
     path "*_summary.txt"
     
 
@@ -193,22 +193,36 @@ process CREATE_TRIM_SUMMARY_TABLE {
   """
 }
 
+process MERGE_UNPAIRED_READ {
+  tag "$id"
+  input: 
+    tuple val(id),path(unpaired_read)
+  output:
+    path "*_U.fq.gz"
+
+  """
+  cat $unpaired_read > ${id}_U.fq.gz
+  """
+}
+
 /*
  * Step 3a: Read QC after trimming using fastqc
  * Input: [samplename]_{1,2}P.fq.gz, [samplename]_{1,2}U.fq.gz
  * Output: [samplename]_{1,2}P.fastqc.zip , [samplename]_{1,2}U.fastqc.zip
  */
 process FASTQC_AFTER_TRIM {
+  publishDir "$params.results/fastqc/trimmed", mode: 'copy'
   tag "$id"
 
   input:
-    tuple val(id), path(reads)
+    tuple val(id), path(reads_pair)
+    tuple val(id), path(reads_unpair)
 
   output:
     path "*.zip"
 
   """
-  fastqc $reads --noextract --quiet
+  fastqc $reads_pair $reads_unpair --noextract --quiet
   """
 }
 
@@ -362,3 +376,4 @@ process MERGE_QCTABLE {
   
   '''
 }
+

@@ -28,12 +28,14 @@ nextflow.enable.dsl = 2
 /*
  * Define the default parameters
  */
+
 // paths & inputs
 baseDir          = "$HOME"
-params.reads     = "$baseDir/workspace/fastq_data/*_{1,2}.fq.gz"
-params.results   = "$baseDir/workspace/results"
+params.reads     = "$baseDir/workspace/sumqc/Bp_fq/*_{1,2}.fq.gz"
+params.results   = "$baseDir/workspace/sumqc/results"
 // parameters for trimming
 params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
+params.mergeUnpair = false
 
 params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)\tavgNContent\t%TotalDeduplicated"
 params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
@@ -64,6 +66,7 @@ include {
   CREATE_QCTABLE_AFTER_TRIM;
   MULTIQC_FASTQC_AFTER_TRIM;
   MERGE_QCTABLE;
+  MERGE_UNPAIRED_READ;
 } from './modules.nf' 
 
 
@@ -83,16 +86,16 @@ workflow {
   // STEP 2: Cleaning
   TRIM(
     read_pairs,
-    params.adapter,
     params.trimming_option
   )
   TRIM.out[1].view()
-  EXTRACT_TRIM_LOG(TRIM.out[1])
-  EXTRACT_TRIM_LOG.out.view()
+  EXTRACT_TRIM_LOG(TRIM.out[2])
   CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
-
+  // STEP 2A: 
+  MERGE_UNPAIRED_READ(TRIM.out[1])
+  MERGE_UNPAIRED_READ.out.view()
   // STEP 3: Quality check after cleaning
-  FASTQC_AFTER_TRIM(TRIM.out[0])
+  FASTQC_AFTER_TRIM(TRIM.out[0],TRIM.out[1])
   EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
   EXTRACT_FASTQC_AFTER_TRIM.out.collect()| CREATE_QCTABLE_AFTER_TRIM
   MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
