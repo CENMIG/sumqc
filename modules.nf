@@ -216,15 +216,17 @@ process FASTQC_AFTER_TRIM {
 
   input:
     tuple val(id), path(reads_pair)
-    tuple val(id), path(reads_unpair)
-
+    path(reads_unpair)
+    
   output:
     path "*.zip"
+    
 
   """
   fastqc $reads_pair $reads_unpair --noextract --quiet
   """
 }
+
 
 /*
  * Step 3b: Extract QC data from cleaned samples 
@@ -233,6 +235,7 @@ process FASTQC_AFTER_TRIM {
  */
 
 process EXTRACT_FASTQC_AFTER_TRIM {
+  publishDir "$params.results/temp", mode: 'copy'
   input: 
     path input
 
