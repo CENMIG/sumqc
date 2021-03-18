@@ -31,8 +31,8 @@ nextflow.enable.dsl = 2
 
 // paths & inputs
 baseDir          = "$HOME"
-params.reads     = "$baseDir/workspace/fastq_data/*_{1,2}.fq.gz"
-params.results   = "$baseDir/workspace/results"
+params.reads     = "$baseDir/workspace/sumqc/Bp_fq/*_{1,2}.fq.gz"
+params.results   = "$baseDir/workspace/sumqc/results"
 // parameters for trimming
 params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 params.mergeUnpair = false
@@ -95,8 +95,8 @@ workflow {
   if(params.mergeUnpair) {
     MERGE_UNPAIRED_READ(TRIM.out[1])
     FASTQC_AFTER_TRIM(
-      TRIM.out[0].collect(),
-      MERGE_UNPAIRED_READ.out.collect()
+      TRIM.out[0],
+      MERGE_UNPAIRED_READ.out
       )
     EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
     EXTRACT_FASTQC_AFTER_TRIM.out.collect()| CREATE_QCTABLE_AFTER_TRIM
