@@ -296,10 +296,19 @@ process CREATE_QCTABLE_AFTER_TRIM {
   publishDir "$params.results/qc_table", mode: 'copy'
   input:
   path all_data
-
+  val mergeUnpair
   output:
   path "*.txt" 
-
+  script:
+  if (mergeUnpair){
+  """
+  cat ${all_data} | sort > qc_table
+  grep P.fq.gz qc_table > qc_pair
+  grep U.fq.gz qc_table | sed G > qc_unpair
+  cat <(echo "${params.qc_header}") qc_pair > qc_pair.txt
+  cat <(echo "${params.qc_header}") qc_unpair  > qc_unpair.txt
+  """
+  } else {
   """
   cat ${all_data} | sort > qc_table
   grep P.fq.gz qc_table > qc_pair
@@ -308,6 +317,7 @@ process CREATE_QCTABLE_AFTER_TRIM {
   cat <(echo "${params.qc_header}") qc_unpair  > qc_unpair.txt
 
   """
+  }
 }
 
 /*
