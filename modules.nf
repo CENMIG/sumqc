@@ -297,8 +297,10 @@ process CREATE_QCTABLE_AFTER_TRIM {
   input:
   path all_data
   val mergeUnpair
+
   output:
   path "*.txt" 
+  
   script:
   if (mergeUnpair){
   """
