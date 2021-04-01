@@ -45,36 +45,19 @@ process EXTRACT_FASTQC_BEFORE_TRIM {
         print $2
         }' !{input.baseName} > !{input.baseName}.txt \
 
-  sed -n '/Per base sequence quality/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
-      }' ORS=" ">> !{input.baseName}.txt \
-
-  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR==3 {
-          print "(" $1 ", "
-      } ORS=""; 
-      {
-          max=lastline;lastline=$1
-      }; 
-      END {
-          print max ")\\n"
-      }'  >> !{input.baseName}.txt \
-
-  sed -n '/Per base N content/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
+  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | tail +3 | head -n -1 | 
+  awk 'NR==1{min=$1}
+    {
+      $3=$1*$2
+    }
+    {
+      n++;
+      sumn+=$2;
+      sum+=$3
+    } 
+    END{
+      printf "%.3f (%.0f, %.0f)\\n",sum/sumn,min,$1
       }' >> !{input.baseName}.txt \
-
-  sed -n '/Total Deduplicated Percentage/,/END/p' !{input.baseName} |
-  awk -F '\\t' 'NR==1 {print $2}' >> !{input.baseName}.txt \
-
 
   paste -s !{input.baseName}.txt > !{input.baseName}_raw.txt
   
@@ -240,7 +223,7 @@ process EXTRACT_FASTQC_AFTER_TRIM {
     path input
 
   output:
-    path "*_fastqc_Trimmed.txt" 
+    path "*trimmed.txt" 
   
   shell:
   '''
@@ -250,38 +233,21 @@ process EXTRACT_FASTQC_AFTER_TRIM {
         print $2
         }' !{input.baseName} > !{input.baseName}.txt \
 
-  sed -n '/Per base sequence quality/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
-      }' ORS=" ">> !{input.baseName}.txt \
-
-  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR==3 {
-          print "(" $1 ", "
-      } ORS=""; 
-      {
-          max=lastline;lastline=$1
-      }; 
-      END {
-          print max ")\\n"
-      }'  >> !{input.baseName}.txt \
-
-  sed -n '/Per base N content/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
+  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | tail +3 | head -n -1 | 
+  awk 'NR==1{min=$1}
+    {
+      $3=$1*$2
+    }
+    {
+      n++;
+      sumn+=$2;
+      sum+=$3
+    } 
+    END{
+      printf "%.3f (%.0f, %.0f)\\n",sum/sumn,min,$1
       }' >> !{input.baseName}.txt \
 
-  sed -n '/Total Deduplicated Percentage/,/END/p' !{input.baseName} |
-  awk -F '\\t' 'NR==1 {print $2}' >> !{input.baseName}.txt \
-
-
-  paste -s !{input.baseName}.txt > !{input.baseName}_Trimmed.txt
+  paste -s !{input.baseName}.txt > !{input.baseName}_trimmed.txt
   
   '''
 }

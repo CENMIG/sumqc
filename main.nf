@@ -37,7 +37,7 @@ params.results   = "$baseDir/workspace/sumqc/results"
 params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 params.mergeUnpair = false
 
-params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)\tavgNContent\t%TotalDeduplicated"
+params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)"
 params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
 
 log.info """\
