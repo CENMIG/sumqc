@@ -76,11 +76,11 @@ process CREATE_QCTABLE_BEFORE_TRIM {
   path all_data
 
   output:
-  path "qc_table_raw.txt"
+  path "qc_raw.txt"
 
   """
   cat  ${all_data} | sort > qc_table
-  cat <(echo "${params.qc_header}") qc_table > qc_table_raw.txt
+  cat <(echo "${params.qc_header}") qc_table > qc_raw.txt
   """
 
 
@@ -91,7 +91,7 @@ process CREATE_QCTABLE_BEFORE_TRIM {
  * Output: "raw_data/ , raw.html"
  */
 process MULTIQC_FASTQC_BEFORE_TRIM {
-  publishDir "$params.results/multiqc_fastqc", mode: 'copy'
+  publishDir "$params.results/multiqc", mode: 'copy'
   errorStrategy 'ignore'
 
   input:
@@ -137,6 +137,7 @@ process TRIM {
     ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 ${trimming_option} 
   """
 }
+
 /*
  * Step 2b: Extract cleaning result from each sample
  * Input: [samplename]_summary.txt
@@ -167,21 +168,21 @@ process CREATE_TRIM_SUMMARY_TABLE {
   path all_data
 
   output:
-  path "trim_log.txt"
+  path "trim_summary.txt"
 
   """
   cat  ${all_data} | sort > qc_table
-  cat <(echo "${params.trim_header}") qc_table > trim_log.txt
+  cat <(echo "${params.trim_header}") qc_table > trim_summary.txt
 
   """
 }
 
 process MERGE_UNPAIRED_READ {
-  tag "$id"
+ 
   input: 
     tuple val(id),path(unpaired_read)
   output:
-    path "*_U.fq.gz"
+    tuple val(id), path("*_U.fq.gz")
 
   """
   cat $unpaired_read > ${id}_U.fq.gz
@@ -199,7 +200,7 @@ process FASTQC_AFTER_TRIM {
 
   input:
     tuple val(id), path(reads_pair)
-    path(reads_unpair)
+    tuple val(id), path(reads_unpair)
     
   output:
     path "*.zip"
@@ -218,7 +219,7 @@ process FASTQC_AFTER_TRIM {
  */
 
 process EXTRACT_FASTQC_AFTER_TRIM {
-  publishDir "$params.results/temp", mode: 'copy'
+  
   input: 
     path input
 
@@ -258,32 +259,52 @@ process EXTRACT_FASTQC_AFTER_TRIM {
  * Output: "qc_pair.txt, qc_unpair.txt"
  */
 
-process CREATE_QCTABLE_AFTER_TRIM {
+process CREATE_QCTABLE {
   publishDir "$params.results/qc_table", mode: 'copy'
   input:
-  path all_data
+  path qc_raw
+  path qc_trim
+  path trim_sum
   val mergeUnpair
 
   output:
-  path "*.txt" 
-  
+  path "qc_pair.txt"
+  path "qc_unpair.txt"
+  path "qc_table.txt" 
   script:
   if (mergeUnpair){
   """
-  cat ${all_data} | sort > qc_table
-  grep P.fq.gz qc_table > qc_pair
-  grep U.fq.gz qc_table | sed G > qc_unpair
-  cat <(echo "${params.qc_header}") qc_pair > qc_pair.txt
-  cat <(echo "${params.qc_header}") qc_unpair  > qc_unpair.txt
-  """
-  } else {
-  """
-  cat ${all_data} | sort > qc_table
-  grep P.fq.gz qc_table > qc_pair
-  grep U.fq.gz qc_table > qc_unpair
-  cat <(echo "${params.qc_header}") qc_pair > qc_pair.txt
-  cat <(echo "${params.qc_header}") qc_unpair  > qc_unpair.txt
+  cat ${qc_trim} | sort | grep P.fq.gz > qc_pair
+  awk -F '\\t' 'NR>1{for(i=0;i<2;i++)print}' ${trim_sum} | \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")"; print}' OFS='\\t' - qc_pair > qc_pair_nh
 
+  cat ${qc_trim} | sort |grep U.fq.gz > qc_unpair
+  awk -F '\\t' 'NR>1{\$5=\$2+\$3; print}' OFS='\\t' ${trim_sum}| \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$5;dro[NR]=\$4;next} {\$2 = \$2 " (" sur[FNR] ")";print \$0, dro[FNR]}' OFS='\\t' - qc_unpair |sed G > qc_unpair_nh
+
+  cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
+  cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
+  
+  paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
+  awk -F '\\t' 'NR>1&&\$NF{\$NF= \$2-\$8-\$14 " (" \$NF ")"}{print}' OFS='\\t' > qc_table.txt 
+  """
+
+  } else {
+  
+  """
+  cat ${qc_trim} | sort |grep P.fq.gz > qc_pair
+  awk -F '\\t' 'NR>1{for(i=0;i<2;i++)print}' ${trim_sum} | \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")";print}' OFS='\\t' - qc_pair > qc_pair_nh
+  
+  cat ${qc_trim} | sort | grep U.fq.gz > qc_unpair
+  awk -F '\\t' 'NR>1{printf "%.2f#%.2f\\n",\$2,\$3}' ${trim_sum} | tr '#' '\n' | \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")"; print \$0}' OFS='\\t' - qc_unpair > qc_unpair_nh
+
+  cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
+  cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
+ 
+  paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
+  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > qc_table.txt 
   """
   }
 }
@@ -295,18 +316,18 @@ process CREATE_QCTABLE_AFTER_TRIM {
  */
 
 process MULTIQC_FASTQC_AFTER_TRIM {
-  publishDir "$params.results/multiqc_fastqc", mode: 'copy'
+  publishDir "$params.results/multiqc", mode: 'copy'
   errorStrategy 'ignore'
 
   input:
     path fastqc_after_all
 
   output:
-    path "cleaned.html"
-    path "cleaned_data"
+    path "trimmed.html"
+    path "trimmed_data"
 
   """
-  multiqc ${fastqc_after_all} --interactive --filename cleaned
+  multiqc ${fastqc_after_all} --interactive --filename trimmed 
   """
 }
 
@@ -321,40 +342,14 @@ process MERGE_QCTABLE {
 
   input:
     path raw_qc_table
-    path trim_qc_table
+    path trim_qc_table_pair
+    path trim_qc_table_unpair
 
   output:
     path "qc_table.txt"
-    
-  shell:
-  '''
-  awk 'BEGIN {
-        OFS="\\t"
-        } 
-    #print header
-      NR==1 {
-        print $0,$0,$0,"Dropped"
-        } 
-    #save total read of raw to array a
-      FNR>1&&NR==FNR {
-        raw[FNR]=$0;
-        a[FNR]=$2;
-        next;
-        }
-    #add ratio of survived pair read
-      FNR>1 && FILENAME=="qc_pair.txt" {
-        pairSeq[FNR]=$2; 
-        $2=$2 " (" $2/a[FNR] ")";
-        b[FNR]=$0;
-        next;
-        } 
-    #add ratio of survived unpair read
-      FNR>1 && FILENAME=="qc_unpair.txt" {
-        $(NF+1)=(a[FNR]-pairSeq[FNR]-$2) " (" (a[FNR]-pairSeq[FNR]-$2)/a[FNR] ")"; #add number and ratio of dropped read
-        $2=$2 " (" $2/a[FNR] ")"; 
-        print raw[FNR],b[FNR],$0; #join tables
-        }' FS='\\t' OFS='\\t' !{raw_qc_table} !{trim_qc_table} > qc_table.txt
   
-  '''
+  """ 
+  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > qc_table.txt
+  """
 }
 

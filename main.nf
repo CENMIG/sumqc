@@ -31,7 +31,7 @@ nextflow.enable.dsl = 2
 
 // paths & inputs
 baseDir          = "$HOME"
-params.reads     = "$baseDir/workspace/sumqc/Bp_fq/*_{1,2}.fq.gz"
+params.reads     = "$baseDir/workspace/fastq_data/*_{1,2}.fq.gz"
 params.results   = "$baseDir/workspace/sumqc/results"
 // parameters for trimming
 params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
@@ -63,7 +63,7 @@ include {
   CREATE_TRIM_SUMMARY_TABLE;
   FASTQC_AFTER_TRIM;
   EXTRACT_FASTQC_AFTER_TRIM;
-  CREATE_QCTABLE_AFTER_TRIM;
+  CREATE_QCTABLE;
   MULTIQC_FASTQC_AFTER_TRIM;
   MERGE_QCTABLE;
   MERGE_UNPAIRED_READ;
@@ -99,22 +99,31 @@ workflow {
       MERGE_UNPAIRED_READ.out
       )
     EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
-    CREATE_QCTABLE_AFTER_TRIM(EXTRACT_FASTQC_AFTER_TRIM.out.collect(),params.mergeUnpair)
+    CREATE_QCTABLE(
+        CREATE_QCTABLE_BEFORE_TRIM.out,
+        EXTRACT_FASTQC_AFTER_TRIM.out.collect(),
+        CREATE_TRIM_SUMMARY_TABLE.out,
+        params.mergeUnpair)
     MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
-    MERGE_QCTABLE(
-    CREATE_QCTABLE_BEFORE_TRIM.out,
-    CREATE_QCTABLE_AFTER_TRIM.out
-    )
+    //MERGE_QCTABLE(
+    //CREATE_QCTABLE_BEFORE_TRIM.out,
+    //CREATE_QCTABLE_AFTER_TRIM.out[0],
+    //CREATE_QCTABLE_AFTER_TRIM.out[1],
+   // )
   }
   else{
     FASTQC_AFTER_TRIM(TRIM.out[0],TRIM.out[1])
     EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten())
-    CREATE_QCTABLE_AFTER_TRIM(EXTRACT_FASTQC_AFTER_TRIM.out.collect(),params.mergeUnpair)
+    CREATE_QCTABLE(
+        CREATE_QCTABLE_BEFORE_TRIM.out,
+        EXTRACT_FASTQC_AFTER_TRIM.out.collect(),
+        CREATE_TRIM_SUMMARY_TABLE.out,
+        params.mergeUnpair)
     MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
-    MERGE_QCTABLE(
-    CREATE_QCTABLE_BEFORE_TRIM.out,
-    CREATE_QCTABLE_AFTER_TRIM.out
-    )
+    //MERGE_QCTABLE(
+    //CREATE_QCTABLE_BEFORE_TRIM.out,
+    //CREATE_QCTABLE_AFTER_TRIM.out
+    //)
   }
 
   // STEP 4: Get all data from step 1 and 3 into single table  

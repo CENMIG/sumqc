@@ -1,2 +1,5 @@
 /work
+/results
 .nextflow*
+main.bak
+modules.bak
