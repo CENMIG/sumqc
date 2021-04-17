@@ -9,7 +9,7 @@
  */
 
 process FASTQC_BEFORE_TRIM {
-  publishDir "$params.results/fastqc", mode: 'copy'
+  publishDir "$params.results/fastqc/raw", mode: 'copy'
   tag "$id"
 
   input:
@@ -45,36 +45,19 @@ process EXTRACT_FASTQC_BEFORE_TRIM {
         print $2
         }' !{input.baseName} > !{input.baseName}.txt \
 
-  sed -n '/Per base sequence quality/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
-      }' ORS=" ">> !{input.baseName}.txt \
-
-  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR==3 {
-          print "(" $1 ", "
-      } ORS=""; 
-      {
-          max=lastline;lastline=$1
-      }; 
-      END {
-          print max ")\\n"
-      }'  >> !{input.baseName}.txt \
-
-  sed -n '/Per base N content/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
+  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | tail +3 | head -n -1 | 
+  awk 'NR==1{min=$1}
+    {
+      $3=$1*$2
+    }
+    {
+      n++;
+      sumn+=$2;
+      sum+=$3
+    } 
+    END{
+      printf "%.3f (%.0f, %.0f)\\n",sum/sumn,min,$1
       }' >> !{input.baseName}.txt \
-
-  sed -n '/Total Deduplicated Percentage/,/END/p' !{input.baseName} |
-  awk -F '\\t' 'NR==1 {print $2}' >> !{input.baseName}.txt \
-
 
   paste -s !{input.baseName}.txt > !{input.baseName}_raw.txt
   
@@ -93,11 +76,11 @@ process CREATE_QCTABLE_BEFORE_TRIM {
   path all_data
 
   output:
-  path "qc_table_raw.txt"
+  path "qc_raw.txt"
 
   """
   cat  ${all_data} | sort > qc_table
-  cat <(echo "${params.qc_header}") qc_table > qc_table_raw.txt
+  cat <(echo "${params.qc_header}") qc_table > qc_raw.txt
   """
 
 
@@ -108,7 +91,7 @@ process CREATE_QCTABLE_BEFORE_TRIM {
  * Output: "raw_data/ , raw.html"
  */
 process MULTIQC_FASTQC_BEFORE_TRIM {
-  publishDir "$params.results/multiqc_fastqc", mode: 'copy'
+  publishDir "$params.results/multiqc", mode: 'copy'
   errorStrategy 'ignore'
 
   input:
@@ -137,11 +120,11 @@ process TRIM {
 
   input:
     tuple val(id), path(reads)
-    path adapter
     val trimming_option
 
   output:
-    tuple val(id), path("*.fq.gz")
+    tuple val(id), path("*P.fq.gz")
+    tuple val(id), path("*U.fq.gz")
     path "*_summary.txt"
     
 
@@ -154,6 +137,7 @@ process TRIM {
     ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 ${trimming_option} 
   """
 }
+
 /*
  * Step 2b: Extract cleaning result from each sample
  * Input: [samplename]_summary.txt
@@ -184,12 +168,24 @@ process CREATE_TRIM_SUMMARY_TABLE {
   path all_data
 
   output:
-  path "trim_log.txt"
+  path "trim_summary.txt"
 
   """
   cat  ${all_data} | sort > qc_table
-  cat <(echo "${params.trim_header}") qc_table > trim_log.txt
+  cat <(echo "${params.trim_header}") qc_table > trim_summary.txt
 
+  """
+}
+
+process MERGE_UNPAIRED_READ {
+ 
+  input: 
+    tuple val(id),path(unpaired_read)
+  output:
+    tuple val(id), path("*_U.fq.gz")
+
+  """
+  cat $unpaired_read > ${id}_U.fq.gz
   """
 }
 
@@ -199,18 +195,22 @@ process CREATE_TRIM_SUMMARY_TABLE {
  * Output: [samplename]_{1,2}P.fastqc.zip , [samplename]_{1,2}U.fastqc.zip
  */
 process FASTQC_AFTER_TRIM {
+  publishDir "$params.results/fastqc/trimmed", mode: 'copy'
   tag "$id"
 
   input:
-    tuple val(id), path(reads)
-
+    tuple val(id), path(reads_pair)
+    tuple val(id), path(reads_unpair)
+    
   output:
     path "*.zip"
+    
 
   """
-  fastqc $reads --noextract --quiet
+  fastqc $reads_pair $reads_unpair --noextract --quiet
   """
 }
+
 
 /*
  * Step 3b: Extract QC data from cleaned samples 
@@ -219,11 +219,12 @@ process FASTQC_AFTER_TRIM {
  */
 
 process EXTRACT_FASTQC_AFTER_TRIM {
+  
   input: 
     path input
 
   output:
-    path "*_fastqc_Trimmed.txt" 
+    path "*trimmed.txt" 
   
   shell:
   '''
@@ -233,38 +234,21 @@ process EXTRACT_FASTQC_AFTER_TRIM {
         print $2
         }' !{input.baseName} > !{input.baseName}.txt \
 
-  sed -n '/Per base sequence quality/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
-      }' ORS=" ">> !{input.baseName}.txt \
-
-  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR==3 {
-          print "(" $1 ", "
-      } ORS=""; 
-      {
-          max=lastline;lastline=$1
-      }; 
-      END {
-          print max ")\\n"
-      }'  >> !{input.baseName}.txt \
-
-  sed -n '/Per base N content/,/END/p' !{input.baseName} | 
-  awk -F '\\t' 'NR>2 && NF>1{
-          n++;sum+=$2
-      } 
-      END {
-          print sum/(NR-3)
+  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | tail +3 | head -n -1 | 
+  awk 'NR==1{min=$1}
+    {
+      $3=$1*$2
+    }
+    {
+      n++;
+      sumn+=$2;
+      sum+=$3
+    } 
+    END{
+      printf "%.3f (%.0f, %.0f)\\n",sum/sumn,min,$1
       }' >> !{input.baseName}.txt \
 
-  sed -n '/Total Deduplicated Percentage/,/END/p' !{input.baseName} |
-  awk -F '\\t' 'NR==1 {print $2}' >> !{input.baseName}.txt \
-
-
-  paste -s !{input.baseName}.txt > !{input.baseName}_Trimmed.txt
+  paste -s !{input.baseName}.txt > !{input.baseName}_trimmed.txt
   
   '''
 }
@@ -275,22 +259,54 @@ process EXTRACT_FASTQC_AFTER_TRIM {
  * Output: "qc_pair.txt, qc_unpair.txt"
  */
 
-process CREATE_QCTABLE_AFTER_TRIM {
+process CREATE_QCTABLE {
   publishDir "$params.results/qc_table", mode: 'copy'
   input:
-  path all_data
+  path qc_raw
+  path qc_trim
+  path trim_sum
+  val mergeUnpair
 
   output:
-  path "*.txt" 
-
+  path "qc_pair.txt"
+  path "qc_unpair.txt"
+  path "qc_table.txt" 
+  script:
+  if (mergeUnpair){
   """
-  cat ${all_data} | sort > qc_table
-  grep P.fq.gz qc_table > qc_pair
-  grep U.fq.gz qc_table > qc_unpair
-  cat <(echo "${params.qc_header}") qc_pair > qc_pair.txt
-  cat <(echo "${params.qc_header}") qc_unpair  > qc_unpair.txt
+  cat ${qc_trim} | sort | grep P.fq.gz > qc_pair
+  awk -F '\\t' 'NR>1{for(i=0;i<2;i++)print}' ${trim_sum} | \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")"; print}' OFS='\\t' - qc_pair > qc_pair_nh
 
+  cat ${qc_trim} | sort |grep U.fq.gz > qc_unpair
+  awk -F '\\t' 'NR>1{\$5=\$2+\$3; print}' OFS='\\t' ${trim_sum}| \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$5;dro[NR]=\$4;next} {\$2 = \$2 " (" sur[FNR] ")";print \$0, dro[FNR]}' OFS='\\t' - qc_unpair |sed G > qc_unpair_nh
+
+  cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
+  cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
+  
+  paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
+  awk -F '\\t' 'NR>1&&\$NF{\$NF= \$2-\$8-\$14 " (" \$NF ")"}{print}' OFS='\\t' > qc_table.txt 
   """
+
+  } else {
+  
+  """
+  cat ${qc_trim} | sort |grep P.fq.gz > qc_pair
+  awk -F '\\t' 'NR>1{for(i=0;i<2;i++)print}' ${trim_sum} | \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")";print}' OFS='\\t' - qc_pair > qc_pair_nh
+  
+  cat ${qc_trim} | sort | grep U.fq.gz > qc_unpair
+  awk -F '\\t' 'NR>1{printf "%.2f#%.2f\\n",\$2,\$3}' ${trim_sum} | tr '#' '\n' | \
+  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")"; print \$0}' OFS='\\t' - qc_unpair > qc_unpair_nh
+
+  cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
+  cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
+ 
+  paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
+  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > qc_table.txt 
+  """
+  }
 }
 
 /*
@@ -300,18 +316,18 @@ process CREATE_QCTABLE_AFTER_TRIM {
  */
 
 process MULTIQC_FASTQC_AFTER_TRIM {
-  publishDir "$params.results/multiqc_fastqc", mode: 'copy'
+  publishDir "$params.results/multiqc", mode: 'copy'
   errorStrategy 'ignore'
 
   input:
     path fastqc_after_all
 
   output:
-    path "cleaned.html"
-    path "cleaned_data"
+    path "trimmed.html"
+    path "trimmed_data"
 
   """
-  multiqc ${fastqc_after_all} --interactive --filename cleaned
+  multiqc ${fastqc_after_all} --interactive --filename trimmed 
   """
 }
 
@@ -326,39 +342,14 @@ process MERGE_QCTABLE {
 
   input:
     path raw_qc_table
-    path trim_qc_table
+    path trim_qc_table_pair
+    path trim_qc_table_unpair
 
   output:
     path "qc_table.txt"
-    
-  shell:
-  '''
-  awk 'BEGIN {
-        OFS="\\t"
-        } 
-    #print header
-      NR==1 {
-        print $0,$0,$0,"Dropped"
-        } 
-    #save total read of raw to array a
-      FNR>1&&NR==FNR {
-        raw[FNR]=$0;
-        a[FNR]=$2;
-        next;
-        }
-    #add ratio of survived pair read
-      FNR>1 && FILENAME=="qc_pair.txt" {
-        pairSeq[FNR]=$2; 
-        $2=$2 " (" $2/a[FNR] ")";
-        b[FNR]=$0;
-        next;
-        } 
-    #add ratio of survived unpair read
-      FNR>1 && FILENAME=="qc_unpair.txt" {
-        $(NF+1)=(a[FNR]-pairSeq[FNR]-$2) " (" (a[FNR]-pairSeq[FNR]-$2)/a[FNR] ")"; #add number and ratio of dropped read
-        $2=$2 " (" $2/a[FNR] ")"; 
-        print raw[FNR],b[FNR],$0; #join tables
-        }' FS='\\t' OFS='\\t' !{raw_qc_table} !{trim_qc_table} > qc_table.txt
   
-  '''
+  """ 
+  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > qc_table.txt
+  """
 }
+
