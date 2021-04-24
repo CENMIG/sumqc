@@ -22,8 +22,10 @@ nextflow.enable.dsl = 2
  */
 // paths & inputs
 baseDir          = "$HOME"
-params.input     = "$baseDir/workspace/fastq_data/*.fq.gz"
+params.input     = "$baseDir/workspace/longread/PacBio_RS_II/*.fq.gz"
 params.results   = "$baseDir/workspace/results"
+params.longQC    = "$baseDir/programs/LongQC/longQC.py"
+params.filtLong  = "$baseDir/programs/Filtlong/bin/filtlong"
 // parameters for trimming
 params.platform = "pb-rs2"
 params.qc_option = "--min_length 10000 --keep_percent 90"
@@ -35,9 +37,9 @@ params.cleaning_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 log.info """\
 snpplet v0.2
 ========================================================
-Raw reads: $params.reads
+Raw reads: $params.input
 Results directory : $params.results
-Trimming option (for trimmomatic): $params.trimming_option
+Trimming option (for trimmomatic): $params.qc_option
 ========================================================
 """
 
@@ -53,7 +55,7 @@ include {
     QC_CLEAN_DATA
     EXTRACT_CLEAN_QC
     CREATE_CLEAN_QC_TABLE
-} from './mod-longread.nf
+} from './mod-longread.nf'
 
 
 /* 
@@ -62,10 +64,10 @@ include {
 workflow {
     inputChannel=Channel.fromPath(params.input)
     QC_RAW_DATA(inputChannel,params.platform)
-    EXTRACT_RAW_QC(inputChannel.getSimpleName(),QC_RAW_DATA.out)
+    EXTRACT_RAW_QC(inputChannel,QC_RAW_DATA.out)
     CREATE_RAW_QC_TABLE(EXTRACT_RAW_QC.out.collect())
     CLEANING(inputChannel,params.qc_option)
     QC_CLEAN_DATA(CLEANING.out,params.platform)
-    EXTRACT_CLEAN_QC(CLEANING.out.getSimpleName(),QC_CLEAN_DATA.out)
+    EXTRACT_CLEAN_QC(CLEANING.out,QC_CLEAN_DATA.out)
     CREATE_CLEAN_QC_TABLE(EXTRACT_CLEAN_QC.out.collect())
 }

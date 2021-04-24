@@ -1,13 +1,4 @@
 
-params.reads="/path/to/data/*.fq.gz"
-
-
-
-
-//define params.read somwehere 
-data = Channel.fromFile(params.reads)
-
-
 //QC the raw data 
 process QC_RAW_DATA {
     publishDir "$params.results/longQC", mode: 'copy'
@@ -22,7 +13,7 @@ process QC_RAW_DATA {
 // add option for -x argument (pb-rs2 pb-sequel, ont-ligation, ont-rapid, ont-1dsq)
     shell:
     """
-    python longQC.py sampleqc -x $platform -o longQC/raw $raw_fastq
+    python $params.longQC sampleqc -x $platform -o qc_raw $raw_fastq --index 400M
 
     """
 }
@@ -32,18 +23,18 @@ process QC_RAW_DATA {
 process EXTRACT_RAW_QC {
     input:
         path raw_id
-        path QC.json 
-        path sdust.txt
+        path QC_json 
+        path sdust_txt
     output:
-        path *_rawqc
+        path "*_rawqc"
 
     shell:
     """
-    awk 'NR==FNR&&/Num_of_reads/{gsub(",",""); num=$2} 
-         NR==FNR&&/N50/{n50=$2} 
-         NR==FNR&&/Mean_GC_content/{gc=$2; next} 
-         {a[NR]=$3; $7=$3*$5; ;sum+=$7 ;sumn+=$3} 
-         END{asort(a); printf "$raw_id %s %.0f (%s-%s) %.2f %.2f\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' $QC.json FS='\t' $sdust.txt > ${raw_id}_rawqc
+    awk 'NR==FNR&&/Num_of_reads/{gsub(",",""); num=\$2} 
+         NR==FNR&&/N50/{n50=\$2} 
+         NR==FNR&&/Mean_GC_content/{gc=\$2; next} 
+         {a[NR]=\$3; \$7=\$3*\$5; ;sum+=\$7 ;sumn+=\$3} 
+         END{asort(a); printf "${raw_id.baseName} %s %.0f (%s-%s) %.2f %.2f\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' $QC.json FS='\t' $sdust.txt > ${raw_id.baseName}_rawqc
     """
 }
 
@@ -53,7 +44,7 @@ process CREATE_RAW_QC_TABLE {
     input:
         path qc_raw
     output: 
-        path qc_raw.txt  
+        path "qc_raw.txt"  
 
     shell:
     """
@@ -71,7 +62,7 @@ process CLEANING {
 
     shell:
     """
-    filtlong $qc_option $raw_fastq | gzip > ${raw_fastq.baseName}.fq.gz
+    $params.filtLong $qc_option $raw_fastq | gzip > ${raw_fastq.baseName}.fq.gz
     """
 }
 
@@ -88,7 +79,7 @@ process QC_CLEAN_DATA {
 
     shell:
     """
-    python longQC.py sampleqc -x $platform -o longQC/cleaned $cleaned_fastq
+    python $params.longQC sampleqc -x $platform -o qc_cleaned $cleaned_fastq --index 400M
 
     """
 }
@@ -97,17 +88,17 @@ process QC_CLEAN_DATA {
 process EXTRACT_CLEAN_QC {
     input:
         path cleaned_id
-        path QC.json 
-        path sdust.txt
+        path QC_json 
+        path sdust_txt
     output:
-        path *_cleanedqc
+        path "*_cleanedqc"
     shell:
     """
-    awk 'NR==FNR&&/Num_of_reads/{gsub(",",""); num=$2} 
-         NR==FNR&&/N50/{n50=$2} 
-         NR==FNR&&/Mean_GC_content/{gc=$2; next} 
-         {a[NR]=$3; $7=$3*$5; ;sum+=$7 ;sumn+=$3} 
-         END{asort(a); printf "$cleaned_id %s %.0f (%s-%s) %.2f %.2f\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' $QC.json FS='\t' $sdust.txt > ${cleaned_id}_cleanedqc
+    awk 'NR==FNR&&/Num_of_reads/{gsub(",",""); num=\$2} 
+         NR==FNR&&/N50/{n50=\$2} 
+         NR==FNR&&/Mean_GC_content/{gc=\$2; next} 
+         {a[NR]=\$3; \$7=\$3*\$5; ;sum+=\$7 ;sumn+=\$3} 
+         END{asort(a); printf "$cleaned_id.baseName %s %.0f (%s-%s) %.2f %.2f\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' $QC.json FS='\t' $sdust.txt > ${cleaned_id.baseName}_cleanedqc
     """
 }
 
@@ -118,7 +109,7 @@ process CREATE_CLEAN_QC_TABLE {
     input:
         path qc_cleaned
     output: 
-        path qc_cleaned.txt  
+        path "qc_cleaned.txt"
 
     shell:
     """
