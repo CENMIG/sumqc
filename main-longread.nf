@@ -22,7 +22,8 @@ nextflow.enable.dsl = 2
  */
 // paths & inputs
 baseDir          = "$HOME"
-params.input     = "$baseDir/workspace/longread/PacBio_RS_II/*.fq.gz"
+params.input     = "$baseDir/workspace/data/*.fastq"
+//params.input     = "$baseDir/workspace/longread/PacBio_RS_II/*.fq.gz"
 params.results   = "$baseDir/workspace/results"
 params.longQC    = "$baseDir/programs/LongQC/longQC.py"
 params.filtLong  = "$baseDir/programs/Filtlong/bin/filtlong"
@@ -64,6 +65,7 @@ include {
 workflow {
     inputChannel=Channel.fromPath(params.input)
     QC_RAW_DATA(inputChannel,params.platform)
+    QC_RAW_DATA.out.view()
     EXTRACT_RAW_QC(inputChannel,QC_RAW_DATA.out)
     CREATE_RAW_QC_TABLE(EXTRACT_RAW_QC.out.collect())
     CLEANING(inputChannel,params.qc_option)

@@ -6,14 +6,13 @@ process QC_RAW_DATA {
         path raw_fastq
         val platform
     output:
-        path "QC_vals_longQC_sampleqc.json"
-        path "longqc_sdust.txt"
+	  path qc_raw 
 
 // path to longQC.py consider to put it in main folder?
 // add option for -x argument (pb-rs2 pb-sequel, ont-ligation, ont-rapid, ont-1dsq)
     shell:
     """
-    python $params.longQC sampleqc -x $platform -o qc_raw $raw_fastq --index 400M
+    python3 $params.longQC sampleqc -x $platform -o qc_raw $raw_fastq 
 
     """
 }
@@ -23,8 +22,7 @@ process QC_RAW_DATA {
 process EXTRACT_RAW_QC {
     input:
         path raw_id
-        path QC_json 
-        path sdust_txt
+        path qc_raw
     output:
         path "*_rawqc"
 
@@ -34,7 +32,7 @@ process EXTRACT_RAW_QC {
          NR==FNR&&/N50/{n50=\$2} 
          NR==FNR&&/Mean_GC_content/{gc=\$2; next} 
          {a[NR]=\$3; \$7=\$3*\$5; ;sum+=\$7 ;sumn+=\$3} 
-         END{asort(a); printf "${raw_id.baseName} %s %.0f (%s-%s) %.2f %.2f\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' $QC.json FS='\t' $sdust.txt > ${raw_id.baseName}_rawqc
+         END{asort(a); printf "${raw_id.baseName} %s %.0f (%s-%s) %.2f %.2f\\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' ${qc_raw}/QC_vals_longQC_sampleqc.json FS='\\t' ${qc_raw}/longqc_sdust.txt > ${raw_id.baseName}_rawqc
     """
 }
 
@@ -62,7 +60,7 @@ process CLEANING {
 
     shell:
     """
-    $params.filtLong $qc_option $raw_fastq | gzip > ${raw_fastq.baseName}.fq.gz
+    $params.filtLong $qc_option $raw_fastq | gzip > ${raw_fastq.baseName}_cleaned.fq.gz
     """
 }
 
@@ -74,12 +72,11 @@ process QC_CLEAN_DATA {
         path cleaned_fastq
         val platform
     output:
-        path "QC_vals_longQC_sampleqc.json"
-        path "longqc_sdust.txt"
+        path qc_cleaned
 
     shell:
     """
-    python $params.longQC sampleqc -x $platform -o qc_cleaned $cleaned_fastq --index 400M
+    python3 $params.longQC sampleqc -x $platform -o qc_cleaned $cleaned_fastq 
 
     """
 }
@@ -88,8 +85,7 @@ process QC_CLEAN_DATA {
 process EXTRACT_CLEAN_QC {
     input:
         path cleaned_id
-        path QC_json 
-        path sdust_txt
+        path qc_cleaned
     output:
         path "*_cleanedqc"
     shell:
@@ -98,7 +94,7 @@ process EXTRACT_CLEAN_QC {
          NR==FNR&&/N50/{n50=\$2} 
          NR==FNR&&/Mean_GC_content/{gc=\$2; next} 
          {a[NR]=\$3; \$7=\$3*\$5; ;sum+=\$7 ;sumn+=\$3} 
-         END{asort(a); printf "$cleaned_id.baseName %s %.0f (%s-%s) %.2f %.2f\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' $QC.json FS='\t' $sdust.txt > ${cleaned_id.baseName}_cleanedqc
+         END{asort(a); printf "${cleaned_id.baseName} %s %.0f (%s-%s) %.2f %.2f\\n", num, n50, a[1], a[FNR], gc*100, sum/sumn}' FS=': ' ${qc_cleaned}/QC_vals_longQC_sampleqc.json FS='\\t' ${qc_cleaned}/longqc_sdust.txt > ${cleaned_id.baseName}_cleanedqc
     """
 }
 
