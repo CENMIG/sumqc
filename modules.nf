@@ -17,9 +17,9 @@ process FASTQC_BEFORE_TRIM {
 
   output:
     path "*.zip"
-
+  
   """
-  fastqc $reads --noextract --quiet
+  ${baseDir}/prog/FastQC/fastqc $reads --noextract --quiet
   """
 }
 
@@ -116,26 +116,26 @@ process MULTIQC_FASTQC_BEFORE_TRIM {
 process TRIM {
   publishDir "$params.results/trim_results", mode: 'copy'
   tag "$id"
-  errorStrategy 'ignore'
+ // errorStrategy 'ignore'
 
   input:
     tuple val(id), path(reads)
-    val trimming_option
+    val qc_option
 
   output:
     tuple val(id), path("*P.fq.gz")
     tuple val(id), path("*U.fq.gz")
     path "*_summary.txt"
-    
-
-  """
-    TrimmomaticPE -trimlog ${id}_log.txt -summary ${id}_summary.txt\
-    -basein ${reads[0]} \
-    -baseout ${id}.fq.gz \
-    ILLUMINACLIP:TruSeq3-PE-2.fa:2:30:10 \
-    ILLUMINACLIP:NexteraPE-PE.fa:2:30:10 \
-    ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 ${trimming_option} 
-  """
+  shell:
+  '''
+  echo !{reads[0]} !{reads[1]}
+  java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -trimlog !{id}_log.txt -summary !{id}_summary.txt \
+  -basein !{reads[0]} \
+  -baseout !{id}.fq.gz \
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/TruSeq3-PE-2.fa:2:30:10 \
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/NexteraPE-PE.fa:2:30:10 \
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/TruSeq3-PE.fa:2:30:10 !{qc_option} 
+  '''
 }
 
 /*
@@ -207,7 +207,7 @@ process FASTQC_AFTER_TRIM {
     
 
   """
-  fastqc $reads_pair $reads_unpair --noextract --quiet
+  ${baseDir}/prog/FastQC/fastqc $reads_pair $reads_unpair --noextract --quiet
   """
 }
 

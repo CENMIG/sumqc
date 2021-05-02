@@ -11,10 +11,9 @@ process QC_RAW_DATA {
 // path to longQC.py consider to put it in main folder?
 // add option for -x argument (pb-rs2 pb-sequel, ont-ligation, ont-rapid, ont-1dsq)
     shell:
-    """
-    python3 $params.longQC sampleqc -x $platform -o qc_raw $raw_fastq 
-
-    """
+   ''' 
+    /usr/bin/env python3 !{baseDir}/prog/LongQC/longQC.py sampleqc -x !{platform} -o qc_raw !{raw_fastq} 
+   '''
 }
 
 
@@ -46,7 +45,8 @@ process CREATE_RAW_QC_TABLE {
 
     shell:
     """
-    cat $qc_raw > qc_raw.txt 
+    echo -e "filename\\tTotalSeq\\tN50(min,max)\\t%GC\\tavgSeqQual" | cat - $qc_raw > qc_raw.txt 
+    
     """
 }
 // Cleaning data
@@ -59,9 +59,9 @@ process CLEANING {
         path "*.fq.gz"
 
     shell:
-    """
-    $params.filtLong $qc_option $raw_fastq | gzip > ${raw_fastq.baseName}_cleaned.fq.gz
-    """
+    ''' 
+    !{baseDir}/prog/Filtlong/bin/filtlong !{qc_option} !{raw_fastq} | gzip > !{raw_fastq.baseName}_cleaned.fq.gz
+    '''
 }
 
 
@@ -75,10 +75,10 @@ process QC_CLEAN_DATA {
         path qc_cleaned
 
     shell:
-    """
-    python3 $params.longQC sampleqc -x $platform -o qc_cleaned $cleaned_fastq 
+    ''' 
+    /usr/bin/env python3 !{baseDir}/prog/LongQC/longQC.py sampleqc -x !{platform} -o qc_cleaned !{cleaned_fastq} 
 
-    """
+    '''
 }
 
 // Extract cleaned QC
@@ -103,13 +103,16 @@ process EXTRACT_CLEAN_QC {
 process CREATE_CLEAN_QC_TABLE {
     publishDir "$params.results/qc_table", mode: 'copy'
     input:
+        path qc_raw
         path qc_cleaned
     output: 
         path "qc_cleaned.txt"
+        path "qc_table.txt"
 
     shell:
     """
-    cat $qc_cleaned > qc_cleaned.txt
+    echo -e "filename\\tTotalSeq\\tN50(min,max)\\t%GC\\tavgSeqQual" | cat - $qc_cleaned > qc_cleaned.txt 
+    paste $qc_raw qc_cleaned.txt > qc_table.txt    
     """
 }
 

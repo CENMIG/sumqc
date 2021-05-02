@@ -6,7 +6,7 @@ then
     usage;
 fi
 
-
+path=`dirname $0`
 
 while getopts "r:p:i:o:mq:" o;
 do
@@ -31,7 +31,7 @@ then
         LR) main_script=main-longread.nf 
             if [[ 'pb-rs2 pb-sequel ont-ligation ont-rapid ont-1dsq' =~ (^|[[:space:]])"$PLATFORM"($|[[:space:]]) ]]
             then
-                platform="--params.platform=='$PLATFORM'"
+                platform="--platform='$PLATFORM'"
             else
                 echo "Usage: must specify platform -p {pb-rs2, pb-sequel, ont-ligation, ont-rapid, ont-1dsq}"
                 exit 65
@@ -49,18 +49,18 @@ fi;
 
 if [ -n "$INPUTS" ]
 then
-    input="--params.input='$INPUTS'"
+    input="--input=$INPUTS"
 else
-    input="--params.input='$PWD/*{1,2}.fq.gz'"
+    input="--input=$PWD/*{1,2}.fq.gz"
 fi
 
 
 
 if [ -n "$OUTPUTS" ]
 then 
-    output="--params.results='$OUTPUT'"
+    output="--results=$OUTPUT"
 else
-    output="--param.results='$PWD/results'"
+    output="--results=$PWD/results"
 fi
 
 
@@ -76,14 +76,17 @@ fi
 
 if [ -n "$QCOPT" ]
 then 
-    qcopt="--params.qc_option=$QCOPT"
+    qcopt="$QCOPT"
 elif [ "$READS" = "SR" ]
 then
 
-    qcopt="--params.qc_option='SLIDINGWINDOW:4:30 MINLEN:70'"
+    qcopt="SLIDINGWINDOW:4:30 MINLEN:70"
 
 elif [ "$READS" = "LR" ]
 then
-    qcopt="--params.qc_option='--min_length 10000 --keep_percent 90'"
+    qcopt="--min_length 10000 --keep_percent 90"
 fi 
-echo "nextflow run $main_script $platform $input $output $merge $qcopt"
+
+echo "nextflow run $path/$main_script $platform $input $output $merge $qcopt"
+nextflow run $path/$main_script $platform $input $output $merge --qc_option="$qcopt"
+
