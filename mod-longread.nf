@@ -107,12 +107,13 @@ process CREATE_CLEAN_QC_TABLE {
         path qc_cleaned
     output: 
         path "qc_cleaned.txt"
-        path "qc_table.txt"
+        path "*qc_table.txt"
 
     shell:
     """
+    timestamp=\$(date '+%d%m%y_%H%M%S')
     echo -e "filename\\tTotalSeq\\tN50(min,max)\\t%GC\\tavgSeqQual" | cat - $qc_cleaned > qc_cleaned.txt 
-    paste $qc_raw qc_cleaned.txt > qc_table.txt    
+    paste $qc_raw qc_cleaned.txt > \${timestamp}qc_table.txt    
     """
 }
 

@@ -132,9 +132,7 @@ process TRIM {
   java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -trimlog !{id}_log.txt -summary !{id}_summary.txt \
   -basein !{reads[0]} \
   -baseout !{id}.fq.gz \
-  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/TruSeq3-PE-2.fa:2:30:10 \
-  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/NexteraPE-PE.fa:2:30:10 \
-  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/TruSeq3-PE.fa:2:30:10 !{qc_option} 
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_option} 
   '''
 }
 
@@ -346,10 +344,11 @@ process MERGE_QCTABLE {
     path trim_qc_table_unpair
 
   output:
-    path "qc_table.txt"
+    path "*qc_table.txt"
   
   """ 
-  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > qc_table.txt
+  timestamp=\$(date '+%d%m%y_%H%M%S')
+  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > \${timestamp}qc_table.txt
   """
 }
 

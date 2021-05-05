@@ -41,7 +41,6 @@ params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min
 params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
 
 log.info """\
-snpplet v0.2
 ========================================================
 Raw reads: $params.input
 Results directory : $params.results
