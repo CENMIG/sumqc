@@ -31,21 +31,20 @@ nextflow.enable.dsl = 2
 
 // paths & inputs
 baseDir          = "$HOME"
-params.reads     = "$baseDir/workspace/fastq_data/*_{1,2}.fq.gz"
+params.input     = "$baseDir/workspace/fastq_data/*_{1,2}.fq.gz"
 params.results   = "$baseDir/workspace/sumqc/results"
 // parameters for trimming
-params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
+params.qc_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 params.mergeUnpair = false
 
 params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)"
 params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
 
 log.info """\
-snpplet v0.2
 ========================================================
-Raw reads: $params.reads
+Raw reads: $params.input
 Results directory : $params.results
-Trimming option (for trimmomatic): $params.trimming_option
+Trimming option (for trimmomatic): $params.qc_option
 ========================================================
 """
 
@@ -75,7 +74,7 @@ include {
  */
 workflow {
   // input: paired-end reads
-  read_pairs = Channel.fromFilePairs(params.reads)
+  read_pairs = Channel.fromFilePairs(params.input)
 
   // STEP 1: Quality check before cleaning
   FASTQC_BEFORE_TRIM(read_pairs)
@@ -86,7 +85,7 @@ workflow {
   // STEP 2: Cleaning
   TRIM(
     read_pairs,
-    params.trimming_option
+    params.qc_option
   )
   EXTRACT_TRIM_LOG(TRIM.out[2])
   CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())

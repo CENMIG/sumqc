@@ -17,9 +17,9 @@ process FASTQC_BEFORE_TRIM {
 
   output:
     path "*.zip"
-
+  
   """
-  fastqc $reads --noextract --quiet
+  ${baseDir}/prog/FastQC/fastqc $reads --noextract --quiet
   """
 }
 
@@ -116,26 +116,24 @@ process MULTIQC_FASTQC_BEFORE_TRIM {
 process TRIM {
   publishDir "$params.results/trim_results", mode: 'copy'
   tag "$id"
-  errorStrategy 'ignore'
+ // errorStrategy 'ignore'
 
   input:
     tuple val(id), path(reads)
-    val trimming_option
+    val qc_option
 
   output:
     tuple val(id), path("*P.fq.gz")
     tuple val(id), path("*U.fq.gz")
     path "*_summary.txt"
-    
-
-  """
-    TrimmomaticPE -trimlog ${id}_log.txt -summary ${id}_summary.txt\
-    -basein ${reads[0]} \
-    -baseout ${id}.fq.gz \
-    ILLUMINACLIP:TruSeq3-PE-2.fa:2:30:10 \
-    ILLUMINACLIP:NexteraPE-PE.fa:2:30:10 \
-    ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 ${trimming_option} 
-  """
+  shell:
+  '''
+  echo !{reads[0]} !{reads[1]}
+  java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -trimlog !{id}_log.txt -summary !{id}_summary.txt \
+  -basein !{reads[0]} \
+  -baseout !{id}.fq.gz \
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_option} 
+  '''
 }
 
 /*
@@ -207,7 +205,7 @@ process FASTQC_AFTER_TRIM {
     
 
   """
-  fastqc $reads_pair $reads_unpair --noextract --quiet
+  ${baseDir}/prog/FastQC/fastqc $reads_pair $reads_unpair --noextract --quiet
   """
 }
 
@@ -270,7 +268,7 @@ process CREATE_QCTABLE {
   output:
   path "qc_pair.txt"
   path "qc_unpair.txt"
-  path "qc_table.txt" 
+  path "*qc_table.txt" 
   script:
   if (mergeUnpair){
   """
@@ -285,8 +283,9 @@ process CREATE_QCTABLE {
   cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
   cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
   
+  timestamp=\$(date '+%H%M%d%m%y')
   paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
-  awk -F '\\t' 'NR>1&&\$NF{\$NF= \$2-\$8-\$14 " (" \$NF ")"}{print}' OFS='\\t' > qc_table.txt 
+  awk -F '\\t' 'NR>1&&\$NF{\$NF= \$2-\$8-\$14 " (" \$NF ")"}{print}' OFS='\\t' > \${timestamp}_qc_table.txt 
   """
 
   } else {
@@ -303,8 +302,9 @@ process CREATE_QCTABLE {
   cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
   cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
  
+  timestamp=\$(date '+%H%M%d%m%y')
   paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
-  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > qc_table.txt 
+  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > \${timestamp}_qc_table.txt 
   """
   }
 }
@@ -346,10 +346,11 @@ process MERGE_QCTABLE {
     path trim_qc_table_unpair
 
   output:
-    path "qc_table.txt"
+    path "*qc_table.txt"
   
   """ 
-  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > qc_table.txt
+  timestamp=\$(date '+%d%m%y_%H%M%S')
+  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > \${timestamp}_qc_table.txt
   """
 }
 

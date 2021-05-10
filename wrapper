@@ -1,0 +1,99 @@
+#!/bin/bash
+
+usage() { 
+    echo "Usage: $0 [-t <SR|LR>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <fq.gz>] [-o <outputDir>] [-m] [-q <qcoption>]" 1>&2 ;  
+}
+if [ -z $1 ];
+then
+    usage;
+fi
+
+#path to call main.nf script outside its directory
+path=$(dirname $0)
+
+while getopts "t:p:i:o:mq:h" o;
+do
+    case $o in
+        t) READS=$OPTARG ;;
+        p) PLATFORM=$OPTARG ;;
+        i) INPUTS=$OPTARG ;;
+        o) OUTPUTS=$OPTARG ;;
+        m) MERGES=true ;;
+        q) QCOPT=$OPTARG ;;
+        h) HELPPPP ;;
+    esac
+done;
+shift $((OPTIND -1))
+
+
+
+if [ -n "$READS" ]
+then
+    case $READS in
+        SR) main_script=main.nf 
+            filename="*{1,2}.fq.gz"
+            ;;
+        LR) main_script=main-longread.nf 
+            filename="*.fq.gz"
+            if [[ 'pb-rs2 pb-sequel ont-ligation ont-rapid ont-1dsq' =~ (^|[[:space:]])"$PLATFORM"($|[[:space:]]) ]]
+            then
+                platform="--platform='$PLATFORM'"
+            else
+                usage; 
+                echo "Usage: must specify platform -p {pb-rs2, pb-sequel, ont-ligation, ont-rapid, ont-1dsq}"
+                exit 65
+            fi
+            ;;
+        *) echo "Usage : must specify reads type, SR - short read, LR - long read"
+           exit 65 ;;
+    esac
+else
+    echo "specify reads type, SR - short read, LR - long read" 
+    exit 65 
+fi;
+
+
+
+if [ -n "$INPUTS" ]
+then
+    input="--input=$INPUTS/$filename"
+else
+    input="--input=$PWD/$filename"
+fi
+
+
+
+if [ -n "$OUTPUTS" ]
+then 
+    output="--results=$OUTPUT"
+else
+    output="--results=$PWD/results"
+fi
+
+
+
+if [ -n "$MERGES" ]
+then 
+    merge="--mergeUnpair=$MERGES"
+else
+    merge=''
+fi
+
+
+
+if [ -n "$QCOPT" ]
+then 
+    qcopt="$QCOPT"
+elif [ "$READS" = "SR" ]
+then
+
+    qcopt="SLIDINGWINDOW:4:30 MINLEN:70"
+
+elif [ "$READS" = "LR" ]
+then
+    qcopt="--min_length 10000 --keep_percent 90"
+fi 
+
+echo "nextflow run $path/$main_script $platform $input $output $merge --qc_option=$qcopt"
+nextflow run $path/$main_script $platform $input $output $merge --qc_option="$qcopt"
+
