@@ -7,8 +7,48 @@ if [[ ! -d "$DIR"  ]]; then DIR="$PWD"; fi
 source "$DIR/awk.sh"
 
 usage() { 
-    echo "Usage: $0 [<SR|LR>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <fq.gz>] [-o <outputDir>] [-m] [-q <qcoption>]" 1>&2 ;  
+    echo "Usage: $0 [<SR|LR|QCsum>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <fq.gz>] [-o <outputDir>] [-m] [-q <qcoption>]" 1>&2 ;  
 }
+
+help() {
+    printf "\n
+    sumQC contain the pipeline to QC, cleaning and, produce the summary of QC into one table including the tool to create data from the QC results manually. The workflows are managed by nextflow (visit https://www.nextflow.io/ for more info). Thus require the java version of 8 or later.
+
+    Usage: $0 [<SR|LR|QCsum>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <fq.gz>] [-o <outputDir>] [-m] [-q <qcoption>] [-r]
+
+DESCRIPTION
+
+    sumQC require the user to specify if the input reads is short reads (SR) or long reads (LR) as a first argument after the command.
+    
+    Every fastq files in the current directory will be use to supply the workflow. The input and output directory can be specify through option -i and -o. If no option is supplied program will assume the input directory and output directory as current working directory.
+    
+    The following programs are use for QC and cleaning process. 
+
+           |   QC   |  Cleaning   |
+            -------- -------------
+        SR | FastQC | Trimmomatic |
+        LR | LongQC |  Filtlong   |
+
+    Options for the pipeline are as follows:
+
+        -h      Print this help
+
+        -i      Input directory
+
+        -o      Output directory
+
+        -m      merge unpair reads in to one file after 
+                cleaning process.
+
+        -q      QC option (default:
+                SR:SLIDINGWINDOW:4:30 MINLEN:70
+                LR:length 10000 --keep_percent 90)
+
+        -r      this give argument -resume to nextflow 
+                command to continue the workflow from 
+                the previous stop.\n" ;
+}
+
 if [ -z $1 ];
 then
     usage;
@@ -26,7 +66,7 @@ do
         m) MERGES=true ;;
         r) RESUME="-resume";;
         q) QCOPT=$OPTARG ;;
-        h) HELPPPP ;;
+        h) help ;;
     esac
 done;
 shift $((OPTIND - 1))
@@ -54,7 +94,8 @@ then
         QCsum) shift ;
             extract_fastqc $@ | column -t -s $'\t' ;;
         compare) calculate_percent $2 $3 $4 ;;
-        *) echo "Usage : must specify reads type, SR - short read, LR - long read"
+        -h) help ;;
+        *) echo "Usage : must specify reads type, SR - short read, LR - long read";
            exit 65 ;;
     esac
 else
