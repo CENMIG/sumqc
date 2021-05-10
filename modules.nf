@@ -268,7 +268,7 @@ process CREATE_QCTABLE {
   output:
   path "qc_pair.txt"
   path "qc_unpair.txt"
-  path "qc_table.txt" 
+  path "*qc_table.txt" 
   script:
   if (mergeUnpair){
   """
@@ -283,8 +283,9 @@ process CREATE_QCTABLE {
   cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
   cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
   
+  timestamp=\$(date '+%H%M%d%m%y')
   paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
-  awk -F '\\t' 'NR>1&&\$NF{\$NF= \$2-\$8-\$14 " (" \$NF ")"}{print}' OFS='\\t' > qc_table.txt 
+  awk -F '\\t' 'NR>1&&\$NF{\$NF= \$2-\$8-\$14 " (" \$NF ")"}{print}' OFS='\\t' > \${timestamp}_qc_table.txt 
   """
 
   } else {
@@ -301,8 +302,9 @@ process CREATE_QCTABLE {
   cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
   cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
  
+  timestamp=\$(date '+%H%M%d%m%y')
   paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
-  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > qc_table.txt 
+  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > \${timestamp}_qc_table.txt 
   """
   }
 }
@@ -348,7 +350,7 @@ process MERGE_QCTABLE {
   
   """ 
   timestamp=\$(date '+%d%m%y_%H%M%S')
-  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > \${timestamp}qc_table.txt
+  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > \${timestamp}_qc_table.txt
   """
 }
 
