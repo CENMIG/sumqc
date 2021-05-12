@@ -1,6 +1,6 @@
 # sumQC
 
-  sumQC contains the [nextflow](https://www.nextflow.io/) pipeline for quality checking and cleaning of both short reads and long reads sequencing data and also produce the summary of quality before and after cleaning into one table. The following software are use in the pipeline. 
+  sumQC contains the [Nextflow](https://www.nextflow.io/) pipeline for quality checking and cleaning of both short reads and long reads sequencing data and also produce the summary of quality before and after cleaning into one table. The following software are use in the pipeline. 
  
 |Pipeline|QC|Cleaning|
 |:--:|:--:|:--:|
@@ -29,7 +29,7 @@ The program come with wrapper name 'sumqc'. Consider put it in your PATH for con
 All related programs in pipeline are already included but their dependencies still need to install manually.
 * linux OS
 * java 8 or later
-  * for [nextflow](https://www.nextflow.io/), [FastQC](https://github.com/s-andrews/FastQC), and [Trimmomatic](http://www.usadellab.org/cms/?page=trimmomatic)
+  * for [Nextflow](https://www.nextflow.io/), [FastQC](https://github.com/s-andrews/FastQC), and [Trimmomatic](http://www.usadellab.org/cms/?page=trimmomatic)
 * python3 
   * for LongQC, please check its dependencies [here](https://github.com/yfukasawa/LongQC)
 * C++ complier (GCC 4.8) 
@@ -62,5 +62,5 @@ Other available options are:
 
 `-q`      QC option (default:SR:SLIDINGWINDOW:4:30 MINLEN:70 ,LR:length 10000 --keep_percent 90)
 
-`-r`      This give argument -resume to nextflow which allow the pipeline to continue from where it stop in the previous run" 
+`-r`      This give argument -resume to Nextflow which allow the pipeline to continue from where it stop in the previous run" 
 
