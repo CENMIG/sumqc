@@ -1,11 +1,11 @@
 # sumQC
 
-sumQC contains the pipeline for quality checking and cleaning of both short reads and long reads sequencing data and also produce the summary of quality before and after cleaning into one table. The following software are use in the pipeline.
-
-||QC|Cleangin|
-|--|--|--|
-|SR|FastQC|Trimmomatic|
-|LR|LongQC|Filtlong|
+  sumQC contains the [nextflow](https://www.nextflow.io/) pipeline for quality checking and cleaning of both short reads and long reads sequencing data and also produce the summary of quality before and after cleaning into one table. The following software are use in the pipeline. 
+ 
+|Pipeline|QC|Cleaning|
+|:--:|:--:|:--:|
+|Short reads|FastQC|Trimmomatic|
+|Long reads|LongQC|Filtlong|
 
 Simplified workflow:
 1) Quality check raw reads. [*fastqc*/*LongQC*]
@@ -26,7 +26,16 @@ The program come with wrapper name 'sumqc'. Consider put it in your PATH for con
 
 # Requirement
 
-All related programs use in pipeline also come inside the prog directory. Both program for QC and cleaning for short reads are written in java. While program for the long reads are written in python. 
+All related programs in pipeline are already included but their dependencies still need to install manually.
+* linux OS
+* java 8 or later
+  * for [nextflow](https://www.nextflow.io/), [FastQC](https://github.com/s-andrews/FastQC), and [Trimmomatic](http://www.usadellab.org/cms/?page=trimmomatic)
+* python3 
+  * for LongQC, please check its dependencies [here](https://github.com/yfukasawa/LongQC)
+* C++ complier (GCC 4.8) 
+  * for [FiltLong](https://github.com/rrwick/Filtlong)
+
+
 ***
 
 # Usage 
@@ -34,16 +43,24 @@ All related programs use in pipeline also come inside the prog directory. Both p
 ```
 # For short reads
 ./sumqc SR -i <path/to/shortread.fastq.gz> -o <path/for/output> -q <trimmomatic cleaning option>
+
 # For long reads
 ./sumqc LR -i <path/to/longread.fastq.gz> -o <path/for/output> -q <FiltLong cleaning option>
 ```
+If cleaning option is not specify the default is <SLIDINGWINDOW:4:30 MINLEN:70> for SR pipeline and <--min_length 10000 --keep_percent 90> for LR pipeline. 
+Please see more details on cleaning option are available on their webpage ([Trimmomatic](http://www.usadellab.org/cms/?page=trimmomatic) and [FiltLong](https://github.com/rrwick/Filtlong)).
 
+Other available options are: 
 
+`-h`      Print help
+  
+`-i`      Input directory
 
+`-o`      Output directory
 
-Goals:
+`-m`      Reserve for SR pipeline. this will merge unpair reads produced by Trimmomatic into single file.
 
-- [x] Output the summary of reads quality before and after trimming into tab-delimited format
+`-q`      QC option (default:SR:SLIDINGWINDOW:4:30 MINLEN:70 ,LR:length 10000 --keep_percent 90)
 
+`-r`      This give argument -resume to nextflow which allow the pipeline to continue from where it stop in the previous run" 
 
-Pipelines are managed by *nextflow*. Most of the codes are reused and modified from snpplet.
