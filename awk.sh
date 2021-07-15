@@ -18,12 +18,6 @@ extract_fastqc () {
         esac
     done
     shift "$(( OPTIND - 1 ))"
-    echo $1
-    #Throw exception if both arguments are called
-    if [[ -n $BaseName ]] && [[ -n $OmitSignal ]]; then
-       echo "only pick -b or -o arguments"
-       exit
-    fi
 
     echo -e "${FileName}TotalSeq\tLength\tGC\tAvgQScore (min,max)";
     for file in $@
@@ -46,7 +40,12 @@ extract_fastqc () {
          }}' OFS='\t'
     done
 }
-
+#print header then continue with whatever command
+body() {
+    IFS= read -r header
+    printf '%s\n' "$header"
+    "$@"
+}
 calculate_percent () {
     #hard code col number $2-raw $8-pair $14-unpair $19-droppped (add)
     paste $@ | \
