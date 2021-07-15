@@ -30,38 +30,19 @@ process FASTQC_BEFORE_TRIM {
  */
 
 process EXTRACT_FASTQC_BEFORE_TRIM {
+  publishDir "$params.results/qc_table", mode: 'copy'
   input: 
-    path input
+    path fwd
+    path rvs
 
   output:
     path "*_raw.txt" 
 
-  
-  shell:
-  '''
-  unzip -p !{input} !{input.baseName}/fastqc_data.txt > !{input.baseName}
-
-  awk -F '\\t' '/Filename|Total Sequences|Sequences flagged as poor quality|Sequence length|%GC/ {
-        print $2
-        }' !{input.baseName} > !{input.baseName}.txt \
-
-  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | tail +3 | head -n -1 | 
-  awk 'NR==1{min=$1}
-    {
-      $3=$1*$2
-    }
-    {
-      n++;
-      sumn+=$2;
-      sum+=$3
-    } 
-    END{
-      printf "%.3f (%.0f, %.0f)\\n",sum/sumn,min,$1
-      }' >> !{input.baseName}.txt \
-
-  paste -s !{input.baseName}.txt > !{input.baseName}_raw.txt
-  
-  '''
+  """
+  #!/bin/bash
+  source ${baseDir}/awk.sh 
+  paste <(extract_fastqc -b ${fwd}) <(extract_fastqc -o ${rvs}) | body sort -k1 > qc_raw.txt
+  """
 }
 
 /*
@@ -123,15 +104,15 @@ process TRIM {
     val qc_option
 
   output:
-    tuple val(id), path("*P.fq.gz")
-    tuple val(id), path("*U.fq.gz")
+    tuple val(id), path("*P.fastq.gz")
+    tuple val(id), path("*U.fastq.gz")
     path "*_summary.txt"
   shell:
   '''
   echo !{reads[0]} !{reads[1]}
-  java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -trimlog !{id}_log.txt -summary !{id}_summary.txt \
+  java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -phred33 -trimlog !{id}_log.txt -summary !{id}_summary.txt \
   -basein !{reads[0]} \
-  -baseout !{id}.fq.gz \
+  -baseout !{id}.fastq.gz \
   ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_option} 
   '''
 }
@@ -180,10 +161,10 @@ process MERGE_UNPAIRED_READ {
   input: 
     tuple val(id),path(unpaired_read)
   output:
-    tuple val(id), path("*_U.fq.gz")
+    tuple val(id), path("*_U.fastq.gz")
 
   """
-  cat $unpaired_read > ${id}_U.fq.gz
+  cat $unpaired_read > ${id}_U.fastq.gz
   """
 }
 
@@ -217,38 +198,22 @@ process FASTQC_AFTER_TRIM {
  */
 
 process EXTRACT_FASTQC_AFTER_TRIM {
-  
+  publishDir "$params.results/qc_table", mode: 'copy'
   input: 
-    path input
+    path fwd_P
+    path rvs_P
+    path fwd_U
+    path rvs_U
 
   output:
-    path "*trimmed.txt" 
+    path "*cleaned.txt" 
   
-  shell:
-  '''
-  unzip -p !{input} !{input.baseName}/fastqc_data.txt > !{input.baseName}
-
-  awk -F '\\t' '/Filename|Total Sequences|Sequences flagged as poor quality|Sequence length|%GC/ {
-        print $2
-        }' !{input.baseName} > !{input.baseName}.txt \
-
-  sed -n '/Per sequence quality scores/,/END/p' !{input.baseName} | tail +3 | head -n -1 | 
-  awk 'NR==1{min=$1}
-    {
-      $3=$1*$2
-    }
-    {
-      n++;
-      sumn+=$2;
-      sum+=$3
-    } 
-    END{
-      printf "%.3f (%.0f, %.0f)\\n",sum/sumn,min,$1
-      }' >> !{input.baseName}.txt \
-
-  paste -s !{input.baseName}.txt > !{input.baseName}_trimmed.txt
-  
-  '''
+  """
+  #!/bin/bash
+  source ${baseDir}/awk.sh 
+  paste <(extract_fastqc -b ${fwd_P}) <(extract_fastqc -o ${rvs_P}) <(extract_fastqc -o ${fwd_U}) <(extract_fastqc -o ${rvs_U}) | body sort -k1 > qc_cleaned.txt
+    
+  """ 
 }
 
 /*
@@ -257,7 +222,7 @@ process EXTRACT_FASTQC_AFTER_TRIM {
  * Output: "qc_pair.txt, qc_unpair.txt"
  */
 
-process CREATE_QCTABLE {
+process FINALISE_QCTABLE {
   publishDir "$params.results/qc_table", mode: 'copy'
   input:
   path qc_raw
@@ -266,17 +231,16 @@ process CREATE_QCTABLE {
   val mergeUnpair
 
   output:
-  path "qc_pair.txt"
-  path "qc_unpair.txt"
   path "*qc_table.txt" 
   script:
   if (mergeUnpair){
   """
-  cat ${qc_trim} | sort | grep P.fq.gz > qc_pair
+
+  cat ${qc_trim} | sort | grep P.fastq.gz > qc_pair
   awk -F '\\t' 'NR>1{for(i=0;i<2;i++)print}' ${trim_sum} | \
   awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")"; print}' OFS='\\t' - qc_pair > qc_pair_nh
 
-  cat ${qc_trim} | sort |grep U.fq.gz > qc_unpair
+  cat ${qc_trim} | sort |grep U.fastq.gz > qc_unpair
   awk -F '\\t' 'NR>1{\$5=\$2+\$3; print}' OFS='\\t' ${trim_sum}| \
   awk -F '\\t' 'NR==FNR{sur[NR]=\$5;dro[NR]=\$4;next} {\$2 = \$2 " (" sur[FNR] ")";print \$0, dro[FNR]}' OFS='\\t' - qc_unpair |sed G > qc_unpair_nh
 
@@ -291,20 +255,20 @@ process CREATE_QCTABLE {
   } else {
   
   """
-  cat ${qc_trim} | sort |grep P.fq.gz > qc_pair
-  awk -F '\\t' 'NR>1{for(i=0;i<2;i++)print}' ${trim_sum} | \
-  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")";print}' OFS='\\t' - qc_pair > qc_pair_nh
+  #!/bin/bash 
+  join --header -t \$'\\t' qc_raw.txt qc_cleaned.txt | \
+  awk -F '\t' 'NR==1{
+      \$(NF+1)="Drop";
+      } 
+  NR>1{
+      \$10= \$10 " (" \$10/\$2*100 ")";
+      \$14= \$14 " (" \$14/\$2*100 ")"; 
+      \$18= \$18 " (" \$18/\$2*100 ")"; 
+      \$22= \$22 " (" \$22/\$2*100 ")"; 
+      \$NF=\$2+\$6-\$10-\$14-\$18-\$22 " (" (\$2+\$6-\$10-\$14-\$18-\$22)/(\$2+\$6)*100 ")";
+      } 
+      {print}' OFS='\\t' > qc_table.txt
   
-  cat ${qc_trim} | sort | grep U.fq.gz > qc_unpair
-  awk -F '\\t' 'NR>1{printf "%.2f#%.2f\\n",\$2,\$3}' ${trim_sum} | tr '#' '\n' | \
-  awk -F '\\t' 'NR==FNR{sur[NR]=\$1;next} {\$2 = \$2 " (" sur[FNR] ")"; print \$0}' OFS='\\t' - qc_unpair > qc_unpair_nh
-
-  cat <(echo "${params.qc_header}") qc_pair_nh > qc_pair.txt
-  cat <(echo -e "${params.qc_header}\tDropped") qc_unpair_nh  > qc_unpair.txt
- 
-  timestamp=\$(date '+%H%M%d%m%y')
-  paste ${qc_raw} qc_pair.txt qc_unpair.txt | \
-  awk -F '\\t' 'NR>1{\$(NF+1)= \$2-\$8-\$14; \$NF=sprintf("%i (%.2f)",\$NF,\$NF/\$2*100)} {print}' OFS='\\t' > \${timestamp}_qc_table.txt 
   """
   }
 }
