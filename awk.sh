@@ -25,7 +25,7 @@ extract_fastqc () {
         trimfile=${file##*/}
         unzip -p $file ${trimfile%.*}/fastqc_data.txt | \
         awk -F '\t'  -v omit=$OmitSignal -v base=$BaseNameSignal -v name=${trimfile%.*} \
-        '/Filename/{if ( length(base)==0 ) {file=$2} else {gsub(/_[12].*/,"");file=$2}}
+        '/Filename/{if ( length(base)==0 ) {file=$2} else {gsub(/_[12]P*\..*/,"");file=$2}}
         /Total Sequences/{seq=$2}
         /Sequence length/{len=$2}
         /%GC/{gc=$2}

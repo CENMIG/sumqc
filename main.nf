@@ -32,9 +32,9 @@ nextflow.enable.dsl = 2
 // paths & inputs
 baseDir          = "$HOME"
 // params.input     = "$baseDir/workspace/sumqc/Bp_fq/*_[1,2].[fq,fastq]*"
-params.input     = "$baseDir/workspace/sumqc/Bp_fq/TESTA_[1,2].[fq,fastq]*"
+params.input     = "$baseDir/github/sumqc/test/input/test*_[1,2].fq.gz"
 // params.results   = "$baseDir/workspace/sumqc/results"
-params.results   = "$baseDir/workspace/sumqc/dev"
+params.results   = "$baseDir/github/sumqc/test/output"
 // parameters for trimming
 // params.qc_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 params.qc_option = "MINLEN:70"
@@ -81,9 +81,10 @@ workflow {
 
   // STEP 1: Quality check before cleaning
   FASTQC_BEFORE_TRIM(read_pairs)
-  FWD_RAW=FASTQC_BEFORE_TRIM.out.flatten().filter{ it =~ /.*_1_fastqc.zip$/ }
-  RVS_RAW=FASTQC_BEFORE_TRIM.out.flatten().filter{ it =~ /.*_2_fastqc.zip$/ }
-  EXTRACT_FASTQC_BEFORE_TRIM(FWD_RAW.collect(),RVS_RAW.collect())
+  /* FASTQC_BEFORE_TRIM.out.collect().view() */
+  /* FWD_RAW=FASTQC_BEFORE_TRIM.out.flatten().filter{ it =~ /.*_1_fastqc.zip$/ } */
+  /* RVS_RAW=FASTQC_BEFORE_TRIM.out.flatten().filter{ it =~ /.*_2_fastqc.zip$/ } */
+  EXTRACT_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.flatten().collect())
   // CREATE_QCTABLE_BEFORE_TRIM(EXTRACT_FASTQC_BEFORE_TRIM.out.collect())
   // MULTIQC_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.collect())
 
@@ -102,19 +103,15 @@ workflow {
       TRIM.out[0],
       MERGE_UNPAIRED_READ.out
       )
-    PFWD_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_1P_fastqc.zip$/ }
-    PRVS_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_2P_fastqc.zip$/ }
-    UFWD_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_U_fastqc.zip$/ }
+    FASTQC_AFTER_TRIM.out.view()
     EXTRACT_FASTQC_AFTER_TRIM(
-        PFWD_CLEANED.collect(),
-        PRVS_CLEANED.collect(),
-        UFWD_CLEANED.collect(),
-        URVS_CLEANED.collect())
+        FASTQC_AFTER_TRIM.out.flatten().collect()
+        )
     FINALISE_QCTABLE(
         EXTRACT_FASTQC_BEFORE_TRIM.out,
         EXTRACT_FASTQC_AFTER_TRIM.out,
-        CREATE_TRIM_SUMMARY_TABLE.out,
-        params.mergeUnpair)
+        CREATE_TRIM_SUMMARY_TABLE.out
+        )
     MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
     //MERGE_QCTABLE(
     //CREATE_QCTABLE_BEFORE_TRIM.out,
@@ -124,20 +121,12 @@ workflow {
   }
   else{
     FASTQC_AFTER_TRIM(TRIM.out[0],TRIM.out[1])
-    PFWD_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_1P_fastqc.zip$/ }
-    PRVS_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_2P_fastqc.zip$/ }
-    UFWD_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_1U_fastqc.zip$/ }
-    URVS_CLEANED=FASTQC_AFTER_TRIM.out.flatten().filter{ it =~ /.*_2U_fastqc.zip$/ }
-    EXTRACT_FASTQC_AFTER_TRIM(
-        PFWD_CLEANED.collect(),
-        PRVS_CLEANED.collect(),
-        UFWD_CLEANED.collect(),
-        URVS_CLEANED.collect())
+    EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten().collect())
     FINALISE_QCTABLE(
         EXTRACT_FASTQC_BEFORE_TRIM.out,
         EXTRACT_FASTQC_AFTER_TRIM.out,
-        CREATE_TRIM_SUMMARY_TABLE.out,
-        params.mergeUnpair)
+        CREATE_TRIM_SUMMARY_TABLE.out
+    )
     MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
     //MERGE_QCTABLE(
     //CREATE_QCTABLE_BEFORE_TRIM.out,
