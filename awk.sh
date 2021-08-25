@@ -3,9 +3,9 @@ extract_fastqc () {
     then
         echo "Supplies one or more fastqc result in zip file."
     fi
-    unset FileName BaseNameSignal OmitSignal OPTIND
+    unset FileName BaseNameSignal OmitSignal headersignal OPTIND
     FileName="FileName\t"
-    while getopts "bo" opt;
+    while getopts "boh" opt;
     do
         case $opt in
             #Print filename as in basename
@@ -15,6 +15,7 @@ extract_fastqc () {
             o) OmitSignal='1'
                FileName=""
                ;;
+            h) headersignal='1';;
         esac
     done
     shift "$(( OPTIND - 1 ))"
@@ -22,6 +23,11 @@ extract_fastqc () {
     echo -e "${FileName}TotalSeq\tLength\tGC\tAvgQScore (min,max)";
     for file in $@
     do
+        if [ -n $headersignal ]
+        then
+            echo -e '\t\t\t\t'
+        fi
+
         trimfile=${file##*/}
         unzip -p $file ${trimfile%.*}/fastqc_data.txt | \
         awk -F '\t'  -v omit=$OmitSignal -v base=$BaseNameSignal -v name=${trimfile%.*} \

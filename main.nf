@@ -12,13 +12,6 @@
  */
 
 
-/* 
- * 'snpplet' - A Nextflow pipeline for variant calling from NGS data
- * 
- * Yuttapong Thawornwattana
- * Bharkbhoom Jaemsai
- */
-
 
 /* 
  * Enable DSL 2 syntax
@@ -39,6 +32,7 @@ params.results   = "$baseDir/github/sumqc/test/output"
 // params.qc_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 params.qc_option = "MINLEN:70"
 params.mergeUnpair = false
+params.SE = false 
 
 params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)"
 params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
@@ -56,18 +50,21 @@ Trimming option (for trimmomatic): $params.qc_option
  * Import modules 
  */
 include { 
-  FASTQC_BEFORE_TRIM;
+  FASTQC_BEFORE_TRIM_SE;
+  FASTQC_BEFORE_TRIM_PE;
   EXTRACT_FASTQC_BEFORE_TRIM;
-  CREATE_QCTABLE_BEFORE_TRIM;
+  /* CREATE_QCTABLE_BEFORE_TRIM; */
   MULTIQC_FASTQC_BEFORE_TRIM;
-  TRIM;
+  TRIM_SE;
+  TRIM_PE;
   EXTRACT_TRIM_LOG;
   CREATE_TRIM_SUMMARY_TABLE;
-  FASTQC_AFTER_TRIM;
+  FASTQC_AFTER_TRIM_SE;
+  FASTQC_AFTER_TRIM_PE;
   EXTRACT_FASTQC_AFTER_TRIM;
   FINALISE_QCTABLE;
   MULTIQC_FASTQC_AFTER_TRIM;
-  MERGE_QCTABLE;
+  /* MERGE_QCTABLE; */
   MERGE_UNPAIRED_READ;
 } from './modules.nf' 
 
@@ -75,66 +72,58 @@ include {
 /* 
  * Main pipeline steps
  */
+ 
 workflow {
   // input: paired-end reads
-  read_pairs = Channel.fromFilePairs(params.input)
+    if (params.SE) {
+        reads = Channel.fromPath(params.input)
+        FASTQC_BEFORE_TRIM_SE(reads).set { FASTQC_BEFORE_TRIM }
+    } else {
+        reads = Channel.fromFilePairs(params.input)
+        FASTQC_BEFORE_TRIM_PE(reads).set { FASTQC_BEFORE_TRIM }
+    }
 
   // STEP 1: Quality check before cleaning
-  FASTQC_BEFORE_TRIM(read_pairs)
-  /* FASTQC_BEFORE_TRIM.out.collect().view() */
-  /* FWD_RAW=FASTQC_BEFORE_TRIM.out.flatten().filter{ it =~ /.*_1_fastqc.zip$/ } */
-  /* RVS_RAW=FASTQC_BEFORE_TRIM.out.flatten().filter{ it =~ /.*_2_fastqc.zip$/ } */
-  EXTRACT_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.flatten().collect())
-  // CREATE_QCTABLE_BEFORE_TRIM(EXTRACT_FASTQC_BEFORE_TRIM.out.collect())
-  // MULTIQC_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.collect())
+  EXTRACT_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.flatten().collect())
 
   // STEP 2: Cleaning
-  TRIM(
-    read_pairs,
-    params.qc_option
+  if (params.SE){
+      TRIM_SE(reads, params.qc_option).set { TRIM }
+      EXTRACT_TRIM_LOG(TRIM_SE.out[1])
+      CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
+      FASTQC_AFTER_TRIM_SE(TRIM_SE.out[0]).set { FASTQC_AFTER_TRIM }
+  } else {
+      TRIM_PE(reads, params.qc_option).set { TRIM }
+      EXTRACT_TRIM_LOG(TRIM_PE.out[2])
+      CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
+      
+      // STEP 3: Quality check after cleaning
+      if(params.mergeUnpair) {
+        MERGE_UNPAIRED_READ(TRIM_PE.out[1])
+        FASTQC_AFTER_TRIM_PE(
+          TRIM_PE.out[0],
+          MERGE_UNPAIRED_READ.out
+          ).set { FASTQC_AFTER_TRIM }
+
+      } else{
+        FASTQC_AFTER_TRIM_PE(
+          TRIM_PE.out[0],
+          TRIM_PE.out[1]
+        ).set { FASTQC_AFTER_TRIM }
+      }
+  }
+  EXTRACT_FASTQC_AFTER_TRIM(
+    FASTQC_AFTER_TRIM.flatten().collect()
   )
-  EXTRACT_TRIM_LOG(TRIM.out[2])
-  CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
+  FINALISE_QCTABLE(
+    EXTRACT_FASTQC_BEFORE_TRIM.out,
+    EXTRACT_FASTQC_AFTER_TRIM.out,
+    CREATE_TRIM_SUMMARY_TABLE.out
+  )
+  MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.collect())
   
-  // STEP 3: Quality check after cleaning
-  if(params.mergeUnpair) {
-    MERGE_UNPAIRED_READ(TRIM.out[1])
-    FASTQC_AFTER_TRIM(
-      TRIM.out[0],
-      MERGE_UNPAIRED_READ.out
-      )
-    FASTQC_AFTER_TRIM.out.view()
-    EXTRACT_FASTQC_AFTER_TRIM(
-        FASTQC_AFTER_TRIM.out.flatten().collect()
-        )
-    FINALISE_QCTABLE(
-        EXTRACT_FASTQC_BEFORE_TRIM.out,
-        EXTRACT_FASTQC_AFTER_TRIM.out,
-        CREATE_TRIM_SUMMARY_TABLE.out
-        )
-    MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
-    //MERGE_QCTABLE(
-    //CREATE_QCTABLE_BEFORE_TRIM.out,
-    //CREATE_QCTABLE_AFTER_TRIM.out[0],
-    //CREATE_QCTABLE_AFTER_TRIM.out[1],
-   // )
-  }
-  else{
-    FASTQC_AFTER_TRIM(TRIM.out[0],TRIM.out[1])
-    EXTRACT_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.flatten().collect())
-    FINALISE_QCTABLE(
-        EXTRACT_FASTQC_BEFORE_TRIM.out,
-        EXTRACT_FASTQC_AFTER_TRIM.out,
-        CREATE_TRIM_SUMMARY_TABLE.out
-    )
-    MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
-    //MERGE_QCTABLE(
-    //CREATE_QCTABLE_BEFORE_TRIM.out,
-    //CREATE_QCTABLE_AFTER_TRIM.out
-    //)
-  }
-
-  // STEP 4: Get all data from step 1 and 3 into single table  
-  
-
 }
+
+  
+
+
