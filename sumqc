@@ -48,7 +48,6 @@ DESCRIPTION
                 command to continue the workflow from 
                 the previous stop.\n" ;
 }
-
 if [ -z $1 ];
 then
     usage;
@@ -77,13 +76,14 @@ if [ -n "$READS" ]
 then
     case $READS in
         SR) main_script=main.nf 
-            filename="*{1,2}.fq.gz"
             run=true
             if [ -n "$READTYPES" ]
             then
                 case $READTYPES in 
-                    SE) singleend="--SE=true";;
-                    PE) singleend="--SE=false";;
+                    SE) singleend="--SE=true"
+                        filename="*.f[aq]*" ;;
+                    PE) singleend="--SE=false"
+                        filename="*{1,2}.f[aq]*" ;;
                     *) echo "must specify PE for paired-end or SE for single-end"
                        exit 65 ;;
                 esac
@@ -93,7 +93,7 @@ then
             fi
             ;;
         LR) main_script=main-longread.nf 
-            filename="*.fq.gz"
+            filename="*.f[aq]*"
             run=true
             if [[ 'pb-rs2 pb-sequel ont-ligation ont-rapid ont-1dsq' =~ (^|[[:space:]])"$PLATFORM"($|[[:space:]]) ]]
             then
@@ -123,12 +123,12 @@ if [ -n "$INPUTS" ]
 then
     if [ -d "$INPUTS" ]
     then
-        input="--input=$INPUTS/$filename"
+        input="--input=${INPUTS}${filename}"
     else
         input="--input=$INPUTS"
     fi
 else
-    input="--input=$PWD/$filename"
+    input="--input=$PWD/*.f[aq]*"
 fi
 
 
