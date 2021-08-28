@@ -62,7 +62,7 @@ process EXTRACT_FASTQC_BEFORE_TRIM {
   """
   #!/bin/bash
   source ${baseDir}/awk.sh
-  paste <(extract_fastqc -b ${fastqc_zip}) <(extract_fastqc -o ) | body sort -k1 > qc_raw.txt
+  extract_fastqc -b -h ${fastqc_zip} | body sort -k1 > qc_raw.txt
   """
   else if (!params.SE) 
   """
@@ -291,7 +291,7 @@ process EXTRACT_FASTQC_AFTER_TRIM {
       """
       #!/bin/bash
       source ${baseDir}/awk.sh
-      paste <(extract_fastqc -o  ${fastqc_zip}) <(extract_fastqc -o) | body sort -k1 > qc_cleaned.txt
+      extract_fastqc -oh ${fastqc_zip} | body sort -k1 > qc_cleaned.txt
       """
   } else if (!params.SE) { 
     if (params.mergeUnpair){
@@ -330,8 +330,32 @@ process FINALISE_QCTABLE {
 
   output:
   path "*qc_table.txt" 
+
   script:
-  if (params.mergeUnpair){
+  if (params.SE){
+  """
+  #!/bin/bash 
+  paste qc_raw.txt qc_cleaned.txt | \
+  awk -F '\\t' '
+  {
+      \$18=sprintf("%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s",\$14,\$15,\$16,\$17,\$14,\$15,\$16,\$17)
+  }
+  NR==1{
+      \$(NF+1)="Drop";
+      } 
+  NR>1{
+      \$10= \$10 " (" \$10/\$2*100 ")";
+      \$(NF+1)=\$2+\$6-\$10-\$19 " (" (\$2+\$6-\$10)/(\$2+\$6)*100 ")";
+      } 
+      {print}' OFS='\\t' > qc_table_tmp.txt
+  echo -e "RAW\t\t\t\t\t\t\t\t\tTRIMMED" > header
+  echo -e "FWD\t\t\t\t\tRVS\t\t\t\tPAIRED_FWD\t\t\t\tPAIRED_RVS\t\t\t\tUNPAIRED" >> header
+  cat header qc_table_tmp.txt > qc_table.txt
+  
+  """
+
+  }
+  else if (params.mergeUnpair){
   """
   #!/bin/bash 
   join --header -t \$'\\t' qc_raw.txt qc_cleaned.txt | \

@@ -20,17 +20,18 @@ extract_fastqc () {
     done
     shift "$(( OPTIND - 1 ))"
 
-    echo -e "${FileName}TotalSeq\tLength\tGC\tAvgQScore (min,max)";
+    if [ -n "$headersignal" ]
+    then
+        echo -e "${FileName}TotalSeq\tLength\tGC\tAvgQScore (min,max)\tTotalSeq\tLength\tGC\tAvgQScore (min,max)";
+    else
+        echo -e "${FileName}TotalSeq\tLength\tGC\tAvgQScore (min,max)";
+    fi
+
     for file in $@
     do
-        if [ -n $headersignal ]
-        then
-            echo -e '\t\t\t\t'
-        fi
-
         trimfile=${file##*/}
         unzip -p $file ${trimfile%.*}/fastqc_data.txt | \
-        awk -F '\t'  -v omit=$OmitSignal -v base=$BaseNameSignal -v name=${trimfile%.*} \
+        awk -F '\t'  -v omit=$OmitSignal -v base=$BaseNameSignal -v name=${trimfile%.*} -v se=$headersignal \
         '/Filename/{if ( length(base)==0 ) {file=$2} else {gsub(/_[12]P*\..*/,"");file=$2}}
         /Total Sequences/{seq=$2}
         /Sequence length/{len=$2}
@@ -38,9 +39,11 @@ extract_fastqc () {
         /Per sequence quality scores/,/END/{nr[NR]=$1; n++ ;nrr[n]=$1 ; min=nrr[3]; max=nr[NR-1] ;$3=$1*$2; sumn+=$2;sum+=$3 ;}
     END{if (length(omit)==0){
         if ( sumn==0 ) {printf "%s\t%s\t%s\t%.3f\t%.3f (%s,%s)\n",file,0,0,0,0,0,0 ; exit};
+        if (length(se)!=0){printf "%s\t%s\t%s\t%.3f\t%.3f (%s,%s)\tNA\tNA\tNA\tNA\n",file,seq,len,gc,sum/sumn,min,max; exit};
         printf "%s\t%s\t%s\t%.3f\t%.3f (%s,%s)\n",file,seq,len,gc,sum/sumn,min,max
          }
     else {
+        if (length(se)!=0){printf "%s\t%s\t%.3f\t%.3f (%s,%s)\tNA\tNA\tNA\tNA\n",seq,len,gc,sum/sumn,min,max; exit};
         if ( sumn==0 ) {printf "%s\t%s\t%.3f\t%.3f (%s,%s)\n",0,0,0,0,0,0 ; exit};
         printf "%s\t%s\t%.3f\t%.3f (%s,%s)\n",seq,len,gc,sum/sumn,min,max
          }}' OFS='\t'

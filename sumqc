@@ -121,7 +121,12 @@ fi;
 
 if [ -n "$INPUTS" ]
 then
-    input="--input=$INPUTS/$filename"
+    if [ -d "$INPUTS" ]
+    then
+        input="--input=$INPUTS/$filename"
+    else
+        input="--input=$INPUTS"
+    fi
 else
     input="--input=$PWD/$filename"
 fi
