@@ -53,7 +53,7 @@ include {
     CLEANING
     QC_CLEAN_DATA
     EXTRACT_CLEAN_QC
-    CREATE_CLEAN_QC_TABLE
+    CREATE_QC_TABLE
 } from './mod-longread.nf'
 
 
@@ -63,10 +63,11 @@ include {
 workflow {
     inputChannel=Channel.fromPath(params.input)
     QC_RAW_DATA(inputChannel,params.platform)
+    QC_RAW_DATA.out.view()
     EXTRACT_RAW_QC(inputChannel,QC_RAW_DATA.out)
     CREATE_RAW_QC_TABLE(EXTRACT_RAW_QC.out.collect())
     CLEANING(inputChannel,params.qc_option)
     QC_CLEAN_DATA(CLEANING.out,params.platform)
     EXTRACT_CLEAN_QC(CLEANING.out,QC_CLEAN_DATA.out)
-    CREATE_CLEAN_QC_TABLE(CREATE_RAW_QC_TABLE.out,EXTRACT_CLEAN_QC.out.collect())
+    CREATE_QC_TABLE(CREATE_RAW_QC_TABLE.out,EXTRACT_CLEAN_QC.out.collect())
 }
