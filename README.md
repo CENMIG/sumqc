@@ -42,7 +42,7 @@ All related programs in pipeline are already included but their dependencies sti
 
 ```
 # For short reads
-./sumqc SR -i <path/to/shortread.fastq.gz> -o <path/for/output> -q <trimmomatic cleaning option>
+./sumqc SR -t <SE|PE> -i <path/to/shortread.fastq.gz> -o <path/for/output> -q <trimmomatic cleaning option>
 
 # For long reads
 ./sumqc LR -i <path/to/longread.fastq.gz> -o <path/for/output> -q <FiltLong cleaning option>
