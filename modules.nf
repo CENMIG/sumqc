@@ -168,7 +168,7 @@ process TRIM_PE {
   '''
   echo !{reads[0]} !{reads[1]}
   java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -phred33 -trimlog !{id}_log.txt -summary !{id}_summary.txt \
-  -basein !{reads[0]} \
+  !{reads[0]} !{reads[1]} \
   -baseout !{id}.fastq.gz \
   ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_option} 
   '''

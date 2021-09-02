@@ -128,7 +128,12 @@ then
         input="--input=$INPUTS"
     fi
 else
-    input="--input=$PWD/*.f[aq]*"
+    if [ "$READTYPES" == "SE" ]
+    then
+        input="--input=$PWD/*.f[aq]*"
+    else 
+        input="--input=$PWD/*[1,2].f[aq]*"
+    fi
 fi
 
 
