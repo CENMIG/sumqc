@@ -76,7 +76,7 @@ include {
   CREATE_QCTABLE;
   MULTIQC_AFTER_CLEANING;
   MERGE_UNPAIRED_READS;
-} from './modules.nf' 
+} from './modules_shortread.nf' 
 
 
 /* 

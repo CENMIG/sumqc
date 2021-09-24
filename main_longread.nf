@@ -49,7 +49,7 @@ Filtlong cleaning options: $params.qc_options
 
 /* 
  * Import modules 
- * from ./mod-longread.nf
+ * from ./modules_longread.nf
  */
 
 include { 
@@ -60,7 +60,7 @@ include {
     LONGQC_AFTER_CLEANING
     EXTRACT_LONGQC_AFTER_CLEANING
     CREATE_QCTABLE
-} from './mod-longread.nf'
+} from './modules_longread.nf'
 
 
 /* 

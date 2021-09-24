@@ -172,5 +172,5 @@ fi
 if [ $run ]
 then
     echo "nextflow run $path/$main_script $platform $input $output $merge --qc_option=$qcopt" $RESUME $singleend
-    nextflow run $path/$main_script $platform $input $output $merge --qc_option="$qcopt" $RESUME $singleend
+    nextflow run $path/$main_script $platform $input $output $merge --qc_options="$qcopt" $RESUME $singleend
 fi
