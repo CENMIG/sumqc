@@ -8,8 +8,8 @@
 ## [MultiQC](https://github.com/ewels/MultiQC)
 > MultiQC: Summarize analysis results for multiple tools and samples in a single report. Philip Ewels, Måns Magnusson, Sverker Lundin and Max Käller Bioinformatics (2016) doi: 10.1093/bioinformatics/btw354 PMID: 27312411
 
-## [LongQC] (https://github.com/yfukasawa/LongQC)
+## [LongQC](https://github.com/yfukasawa/LongQC)
 > LongQC: A Quality Control Tool for Third Generation Sequencing Long Read Data. Yoshinori Fukasawa, Luca Ermini, Hai Wang, Karen Carty, Ming-Sin Cheung. G3: Genes, Genomes, Genetics, 10(4): 1193-1196, 2020
 
-## [Filtlong] (https://github.com/rrwick/Filtlong)
+## [Filtlong](https://github.com/rrwick/Filtlong)
 > Wick, R. (2021) Filtlong v.0.2.1 [Online]. Available online at: https://github.com/rrwick/Filtlong
