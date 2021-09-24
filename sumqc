@@ -11,42 +11,79 @@ usage() {
 }
 
 help() {
-    printf "
-    sumQC contains the pipeline for QC, cleaning and, produce the summary of QC into one table including the tool to create data from the QC results manually. The workflow is managed by NextFlow (visit https://www.nextflow.io/ for more info) which requires java version of 8 or later. Software use in long read pipeline are written in python and need to download required packaged before use. (visit LongQC and Filtlong github page for more info)
+    printf "SUMQC
 
-    Usage: $0 [<SR|LR|QCsum>] [-t <SE|PE>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <fq.gz>] [-o <outputDir>] [-m] [-q <qcoption>] [-r]
+    sumQC is the pipeline use for checking quality, cleaning, and making the table of QC statistic before and after cleaning. The pipeline is built using Nextflow, a workflow tool to run tasks across multiple compute infrasturcture (https://www.nextflow.io).
 
+USAGE
+
+    $0 [<SR|LR>] [-t <SE|PE>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <*.fastq.gz|*[12].fastq.gz>] [-o <outputDir>] [-m] [-q <qc options>] [-r]
+
+    Short read workflow 
+
+    $0 SR -t SE -i *.fastq.gz -o ./output -q 'AVGQUAL:30 MINLEN:70'
+
+    $0 SR -t PE -i *[12].fastq.gz -o ./output -q 'AVGQUAL:30 MINLEN:70'
+
+    Long read workflow 
+    
+    $0 LR -p pb-rs2 -i *.fastq.gz -o ./output -q '--min_length 10000'
+    
 DESCRIPTION
 
-    sumQC require the user to specify if the input reads is short reads (SR) or long reads (LR) as a first argument..
-    
-    Every fastq files in the current directory will be use to supply to the pipeline. The input and output directory can be specify through option -i and -o respectively. If no options are supplied, program will assume the input and output directory as current working directory.
-    
-    The following programs are use for QC and cleaning process. 
+    sumQC contains two workflows for short read and long read which use two different sets of program for quality checking and cleaning. Workflow must be specified as a first argument before adding other option (SR for short read and LR for long read). The programs used in the workflows are:
 
-           |   QC   |  Cleaning   |
-            -------- -------------
-        SR | FastQC | Trimmomatic |
-        LR | LongQC |  Filtlong   |
+                |  Workflow  |   QC   |   Cleaning  |
+                 ------------ -------- ------------- 
+                | Short read | FastQC | Trimmomatic |
+                |  Long read | LongQC |    FiltLong |
 
-    Options for the pipeline are as follows:
+    Cleaning options are use according to the program used in the workflow. Please refers to the program webpage for the full list of options.
+
+    - Trimmomatic (http://www.usadellab.org/cms/?page=trimmomatic)
+    - FiltLong (https://github.com/rrwick/Filtlong)
+
+    sumQC takes a glob pattern of fastq file as input. If no pattern are specified the program will use default glob pattern according to the workflow and the type of read user specified. The program then run in the following steps in the pipeline. 
+
+    1. Quality check fastq file before cleaning.
+    2. Cleaning fastq file.
+    3. Quality check fastq file after cleaning.
+    4. Extract QC statistic from step 1 and 4 to create QC statistic table before and after cleaning.
+
+Full list of options for sumQC are as follows:
 
         -h      Print this help
 
-        -i      Input directory
+        -i      Glob pattern of input fastq file
+                (i.e. *[12].fastq.gz)
 
         -o      Output directory
 
-        -m      merge unpair reads in to one file after 
-                cleaning process.
+        -m      For paired-end read. Merge unpaired 
+                forward and reverse reads into one file 
+                after cleaning process.
 
-        -q      QC option (default:
-                SR:SLIDINGWINDOW:4:30 MINLEN:70
-                LR:length 10000 --keep_percent 90)
+        -p      Sequencing platform for long read.
+                (https://github.com/yfukasawa/LongQC)
 
-        -r      this give argument -resume to nextflow 
-                command to continue the workflow from 
-                the previous stop.\n" ;
+                Platforms           Options
+                ---------           -------
+                RS-II               pb-rs2
+                Sequel              pb-sequel
+                ONT(1D ligation)    ont-ligation
+                ONT(rapid)          ont-rapid
+
+        -q      Cleaning options 
+
+                default for short read workflow:
+                SLIDINGWINDOW:4:30 MINLEN:70
+
+                default for long read workflow:
+                min_length 10000 --keep_percent 90)
+
+        -r      Resume from cache in work directoty.
+                This is the same as
+                nextflow run main.nf -resume.\n\n" ;
 }
 if [ -z $1 ];
 then
