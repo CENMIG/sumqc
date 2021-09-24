@@ -1,13 +1,11 @@
 #!/bin/bash
 
-
-
 DIR="${BASH_SOURCE%/*}"
 if [[ ! -d "$DIR"  ]]; then DIR="$PWD"; fi
 source "$DIR/awk.sh"
 
 usage() { 
-    echo "Usage: $0 [<SR|LR|QCsum>] [-t <SE|PE>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <fq.gz>] [-o <outputDir>] [-m] [-q <qcoption>]" 1>&2 ;  
+    echo "Usage: $0 [<SR|LR>] [-t <SE|PE>] [-p <pb-rs2|pb-sequel|ont-ligation|ont-rapid|ont-1dsq>] [-i <*.fastq.gz|*[12].fastq.gz>] [-o <outputDir>] [-m] [-q <qcoption>] [-r]" 1>&2 ;  
 }
 
 help() {
@@ -21,13 +19,13 @@ USAGE
 
     Short read workflow 
 
-    $0 SR -t SE -i *.fastq.gz -o ./output -q 'AVGQUAL:30 MINLEN:70'
+    $0 SR -t SE -i '*.fastq.gz' -o ./output -q 'AVGQUAL:30 MINLEN:70'
 
-    $0 SR -t PE -i *[12].fastq.gz -o ./output -q 'AVGQUAL:30 MINLEN:70'
+    $0 SR -t PE -i '*[12].fastq.gz' -o ./output -q 'AVGQUAL:30 MINLEN:70'
 
     Long read workflow 
     
-    $0 LR -p pb-rs2 -i *.fastq.gz -o ./output -q '--min_length 10000'
+    $0 LR -p pb-rs2 -i '*.fastq.gz' -o ./output -q '--min_length 10000'
     
 DESCRIPTION
 
@@ -82,9 +80,13 @@ Full list of options for sumQC are as follows:
                 min_length 10000 --keep_percent 90)
 
         -r      Resume from cache in work directoty.
-                This is the same as
-                nextflow run main.nf -resume.\n\n" ;
+                This is the same as:
+
+                nextflow run main.nf -resume.
+
+                (https://www.nextflow.io/docs/latest/cli.html?highlight=resume#run)\n\n" ;
 }
+
 if [ -z $1 ];
 then
     usage;
@@ -129,7 +131,7 @@ then
                 exit 65
             fi
             ;;
-        LR) main_script=main-longread.nf 
+        LR) main_script=main_longread.nf 
             filename="*.f[aq]*"
             run=true
             if [[ 'pb-rs2 pb-sequel ont-ligation ont-rapid ont-1dsq' =~ (^|[[:space:]])"$PLATFORM"($|[[:space:]]) ]]
