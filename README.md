@@ -16,10 +16,10 @@ Cleaning options are use according to the program used in the workflow. Please r
 # Pipeline summary 
 
 1) Quality check before cleaning. `fastqc` `multiqc` `LongQC`
-2) Extract quality statistic before cleaning `awk`
+2) Extract quality statistic before cleaning `bash script`
 3) Cleaning fastq file. `Trimmomatic` `FiltLong`
 4) Quality check before cleaning. `fastqc` `multiqc` `LongQC`
-5) Extract quality statistic before cleaning `awk`
+5) Extract quality statistic before cleaning `bash script`
 6) Summarise quality statistic into one table.
 
 
