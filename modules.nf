@@ -3,14 +3,14 @@
  */
 
 /*
- * Step 1a: Read QC before trimming using fastqc
+ * Read QC before cleaning using fastqc
  * Input: Raw reads
  * Output: [samplename].fastqc.zip
  */
 
-process FASTQC_BEFORE_TRIM_SE {
-  publishDir "$params.results/fastqc/raw", mode: 'copy'
-  tag "$id"
+process FASTQC_BEFORE_CLEANING_SE {
+  publishDir "$params.output/fastqc/raw", mode: 'copy'
+  tag "$reads"
 
   input:
     path reads
@@ -22,14 +22,15 @@ process FASTQC_BEFORE_TRIM_SE {
   ${baseDir}/prog/FastQC/fastqc $reads --noextract --quiet
   """
 }
+
 /*
- * Step 1a1: Read QC before trimming using fastqc
+ * Read QC before cleaning using fastqc
  * Input: Raw reads
  * Output: [samplename].fastqc.zip
  */
 
-process FASTQC_BEFORE_TRIM_PE {
-  publishDir "$params.results/fastqc/raw", mode: 'copy'
+process FASTQC_BEFORE_CLEANING_PE {
+  publishDir "$params.output/fastqc/raw", mode: 'copy'
   tag "$id"
 
   input:
@@ -42,14 +43,15 @@ process FASTQC_BEFORE_TRIM_PE {
   ${baseDir}/prog/FastQC/fastqc $reads --noextract --quiet
   """
 }
+
 /*
- * Step 1b: Extract QC data of each sample 
- * Input: [samplename].fastqc.zip
+ * Extract FastQC results
+ * Input: [samplename]_fastqc.zip
  * Output: [samplename]_raw.txt
  */
 
-process EXTRACT_FASTQC_BEFORE_TRIM {
-  publishDir "$params.results/qc_table", mode: 'copy'
+process EXTRACT_FASTQC_BEFORE_CLEANING {
+  publishDir "$params.output/qc_table", mode: 'copy'
   input: 
     path fastqc_zip
   output:
@@ -70,37 +72,19 @@ process EXTRACT_FASTQC_BEFORE_TRIM {
   source ${baseDir}/awk.sh 
   paste <(extract_fastqc -b ${fwd}) <(extract_fastqc -o ${rvs}) | body sort -k1 > qc_raw.txt
   """
-  
+ 
 }
 
+
+
 /*
- * Step 1c: Merge all sample's QC data into one table
- * Input: [samplename]_raw.txt
- * Output: qc_table_raw.txt
- */
-
-process CREATE_QCTABLE_BEFORE_TRIM {
-  publishDir "$params.results/qc_table", mode: 'copy'
-  input:
-  path all_data
-
-  output:
-  path "qc_raw.txt"
-
-  """
-  cat  ${all_data} | sort > qc_table
-  cat <(echo "${params.qc_header}") qc_table > qc_raw.txt
-  """
-
-
-}
-/*
- * Step 1d: Summarise fastqc results using multiqc
+ * Summarise FastQC results before cleaning using MultiQC
  * Input: [samplename].fastqc.zip
  * Output: "raw_data/ , raw.html"
  */
-process MULTIQC_FASTQC_BEFORE_TRIM {
-  publishDir "$params.results/multiqc", mode: 'copy'
+
+process MULTIQC_BEFORE_CLEANING {
+  publishDir "$params.output/multiqc", mode: 'copy'
   errorStrategy 'ignore'
 
   input:
@@ -115,23 +99,23 @@ process MULTIQC_FASTQC_BEFORE_TRIM {
   """
 }
 
-
 /*
- * Step 2a. Trim adapters and low quality reads
+ * Trim adapters and drop low quality reads
  * Input: Raw reads
- * Output: "[samplename]_1P.fq.gz, [samplename]_1U.fq.gz, [samplename]_2P.fq.gz, [samplename]_2U.fq.gz, [samplename]_summary.txt" 
+ * Output: "[samplename].fq.gz
  */
-process TRIM_SE {
-  publishDir "$params.results/trim_results", mode: 'copy'
+
+process CLEAN_SE {
+  publishDir "$params.output/cleaned_results", mode: 'copy'
   tag "$reads"
  // errorStrategy 'ignore'
 
   input:
     path reads
-    val qc_option
+    val qc_options
 
   output:
-    path "*_trim.fastq.gz"
+    path "*_cleaned.fastq.gz"
     path "*_summary.txt"
     
   when: 
@@ -142,19 +126,25 @@ process TRIM_SE {
   echo !{reads}
   java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar SE -phred33 -trimlog !{reads}_log.txt -summary !{reads}_summary.txt \
   !{reads} \
-  !{reads}_trim.fastq.gz \
-  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_option} 
+  !{reads}_cleaned.fastq.gz \
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_options} 
   '''
 }
 
-process TRIM_PE {
-  publishDir "$params.results/trim_results", mode: 'copy'
+/*
+ * Trim adapters and drop low quality reads
+ * Input: Raw reads
+ * Output: "[samplename]_1P.fq.gz, [samplename]_1U.fq.gz, [samplename]_2P.fq.gz, [samplename]_2U.fq.gz, [samplename]_summary.txt" 
+ */
+
+process CLEAN_PE {
+  publishDir "$params.output/cleaned_results", mode: 'copy'
   tag "$id"
  // errorStrategy 'ignore'
 
   input:
     tuple val(id), path(reads)
-    val qc_option
+    val qc_options
 
   output:
     tuple val(id), path("*P.fastq.gz")
@@ -170,15 +160,16 @@ process TRIM_PE {
   java -jar !{baseDir}/prog/trimmomatic/trimmomatic-0.39.jar PE -phred33 -trimlog !{id}_log.txt -summary !{id}_summary.txt \
   !{reads[0]} !{reads[1]} \
   -baseout !{id}.fastq.gz \
-  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_option} 
+  ILLUMINACLIP:!{baseDir}/prog/trimmomatic/adapters/adapter.fa:2:30:10 !{qc_options} 
   '''
 }
 
 /*
- * Step 2b: Extract cleaning result from each sample
+ * Extract read statistics from Trimmomatic log files
  * Input: [samplename]_summary.txt
  * Output: [samplename]_ext.txt
  */
+
 process EXTRACT_TRIM_LOG {
   input:
   path summarylog
@@ -192,14 +183,14 @@ process EXTRACT_TRIM_LOG {
   """
 }
 
-/*
- * Step 2c: Merge cleaning result into one table
- * Input: [samplename]_ext.txt
- * Output: trim_log.txt
+/* Create read summary statistics table
+ * Input: trim_summary.txt
+ * Output: trim_summary.txt
  */
 
+
 process CREATE_TRIM_SUMMARY_TABLE {
-  publishDir "$params.results/qc_table", mode: 'copy'
+  publishDir "$params.output/qc_table", mode: 'copy'
   input:
   path all_data
 
@@ -208,12 +199,17 @@ process CREATE_TRIM_SUMMARY_TABLE {
 
   """
   cat  ${all_data} | sort > qc_table
-  cat <(echo "${params.trim_header}") qc_table > trim_summary.txt
+  cat <(echo "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead") qc_table > trim_summary.txt
 
   """
 }
 
-process MERGE_UNPAIRED_READ {
+/* Merge unpaired F and R reads' stats 
+ * Input: [samplename]_ext.txt
+ * Output: trim_log.txt
+ */
+
+process MERGE_UNPAIRED_READS {
  
   input: 
     tuple val(id),path (unpaired_read)
@@ -228,32 +224,32 @@ process MERGE_UNPAIRED_READ {
 }
 
 /*
- * Step 3a: Read QC after trimming using fastqc
+ * SE read QC after cleaning using FastQC
  * Input: [samplename]_{1,2}P.fq.gz, [samplename]_{1,2}U.fq.gz
  * Output: [samplename]_{1,2}P.fastqc.zip , [samplename]_{1,2}U.fastqc.zip
  */
-process FASTQC_AFTER_TRIM_SE {
-  publishDir "$params.results/fastqc/trimmed", mode: 'copy'
+process FASTQC_AFTER_CLEANING_SE {
+  publishDir "$params.output/fastqc/cleaned", mode: 'copy'
   tag "$id"
 
   input:
-    path trim_reads
+    path cleaned_reads
   output:
     path "*.zip"
     
 
   """
-  ${baseDir}/prog/FastQC/fastqc $trim_reads   --noextract --quiet
+  ${baseDir}/prog/FastQC/fastqc $cleaned_reads   --noextract --quiet
   """
 }
 
 /*
- * Step 3a1: Read QC after trimming using fastqc
+ * PE read QC after cleaning using fastqc
  * Input: [samplename]_{1,2}P.fq.gz, [samplename]_{1,2}U.fq.gz
  * Output: [samplename]_{1,2}P.fastqc.zip , [samplename]_{1,2}U.fastqc.zip
  */
-process FASTQC_AFTER_TRIM_PE {
-  publishDir "$params.results/fastqc/trimmed", mode: 'copy'
+process FASTQC_AFTER_CLEANING_PE {
+  publishDir "$params.output/fastqc/cleaned", mode: 'copy'
   tag "$id"
 
   input:
@@ -270,13 +266,13 @@ process FASTQC_AFTER_TRIM_PE {
 
 
 /*
- * Step 3b: Extract QC data from cleaned samples 
+ * Extract FastQC results after cleaning
  * Input: [samplename]_{1,2}P.fastqc.zip , [samplename]_{1,2}U.fastqc.zip
  * Output: [samplename]_{1,2}P_Trimmed.txt , [samplename]_{1,2}U_Trimmed.txt
  */
 
-process EXTRACT_FASTQC_AFTER_TRIM {
-  publishDir "$params.results/qc_table", mode: 'copy'
+process EXTRACT_FASTQC_AFTER_CLEANING {
+  publishDir "$params.output/qc_table", mode: 'copy'
   input: 
     path fastqc_zip
   output:
@@ -294,7 +290,7 @@ process EXTRACT_FASTQC_AFTER_TRIM {
       extract_fastqc -oh ${fastqc_zip} | body sort -k1 > qc_cleaned.txt
       """
   } else if (!params.SE) { 
-    if (params.mergeUnpair){
+    if (params.mergeUnpaired){
     def unpair = fastqc_zip.findAll {it =~ /.*U_fastqc.zip$/ }.join(' ')
       """
       #!/bin/bash
@@ -316,16 +312,16 @@ process EXTRACT_FASTQC_AFTER_TRIM {
 }
 
 /*
- * Step 3c: Merge QC data of paired and unpaired samples into two different table
+ * Create a QC summary statistics table 
  * Input: [samplename]_{1,2}P_Trimmed.txt , [samplename]_{1,2}U_Trimmed.txt
  * Output: "qc_pair.txt, qc_unpair.txt"
  */
 
-process FINALISE_QCTABLE {
-  publishDir "$params.results/qc_table", mode: 'copy'
+process CREATE_QCTABLE {
+  publishDir "$params.output/qc_table", mode: 'copy'
   input:
   path qc_raw
-  path qc_trim
+  path qc_cleaned
   path trim_sum
 
   output:
@@ -348,14 +344,14 @@ process FINALISE_QCTABLE {
       \$(NF+1)=\$2+\$6-\$10-\$19 " (" (\$2+\$6-\$10)/(\$2+\$6)*100 ")";
       } 
       {print}' OFS='\\t' > qc_table_tmp.txt
-  echo -e "RAW\t\t\t\t\t\t\t\t\tTRIMMED" > header
+  echo -e "BEFORE_CLEANING\t\t\t\t\t\t\t\t\tAFTER_CLEANING" > header
   echo -e "FWD\t\t\t\t\tRVS\t\t\t\tPAIRED_FWD\t\t\t\tPAIRED_RVS\t\t\t\tUNPAIRED" >> header
   cat header qc_table_tmp.txt > qc_table.txt
   
   """
 
   }
-  else if (params.mergeUnpair){
+  else if (params.mergeUnpaired){
   """
   #!/bin/bash 
   join --header -t \$'\\t' qc_raw.txt qc_cleaned.txt | \
@@ -369,7 +365,7 @@ process FINALISE_QCTABLE {
       \$(NF+1)=\$2+\$6-\$10-\$14-\$18-\$22 " (" (\$2+\$6-\$10-\$14-\$18)/(\$2+\$6)*100 ")";
       } 
       {print}' OFS='\\t' > qc_table_tmp.txt
-  echo -e "RAW\t\t\t\t\t\t\t\t\tTRIMMED" > header
+  echo -e "BEFORE_CLEANING\t\t\t\t\t\t\t\t\tAFTER_CLEANING" > header
   echo -e "FWD\t\t\t\t\tRVS\t\t\t\tPAIRED_FWD\t\t\t\tPAIRED_RVS\t\t\t\tUNPAIRED" >> header
   cat header qc_table_tmp.txt > qc_table.txt
   
@@ -391,7 +387,7 @@ process FINALISE_QCTABLE {
       \$(NF+1)=\$2+\$6-\$10-\$14-\$18-\$22 " (" (\$2+\$6-\$10-\$14-\$18-\$22)/(\$2+\$6)*100 ")";
       } 
       {print}' OFS='\\t' > qc_table_tmp.txt
-  echo -e "RAW\t\t\t\t\t\t\t\t\tTRIMMED" > header
+  echo -e "BEFORE_CLEANING\t\t\t\t\t\t\t\t\tAFTER_CLEANING" > header
   echo -e "FWD\t\t\t\t\tRVS\t\t\t\tPAIRED_FWD\t\t\t\tPAIRED_RVS\t\t\t\tUNPAIRED_FWD\t\t\t\tUNPAIRED_RVS" >> header
   cat header qc_table_tmp.txt > qc_table.txt
   """
@@ -399,47 +395,66 @@ process FINALISE_QCTABLE {
 }
 
 /*
- * Step 3d: Summarise fastqc results using multiqc
+ * Summarise FastQC results after cleaning using MultiQC
  * Input: [samplename]_{1,2}P.fastqc.zip , [samplename]_{1,2}U.fastqc.zip
  * Output: "cleaned_data/ , cleaned.html"
  */
 
-process MULTIQC_FASTQC_AFTER_TRIM {
-  publishDir "$params.results/multiqc", mode: 'copy'
+process MULTIQC_AFTER_CLEANING {
+  publishDir "$params.output/multiqc", mode: 'copy'
   // errorStrategy 'ignore'
 
   input:
     path fastqc_after_all
 
   output:
-    path "trimmed.html"
-    path "trimmed_data"
+    path "cleaned.html"
+    path "cleaned_data"
 
   """
-  multiqc ${fastqc_after_all} --interactive --filename trimmed 
+  multiqc ${fastqc_after_all} --interactive --filename cleaned 
   """
 }
 
-/*
- * Step 4: Merge extracted QC data from both before and after cleaning into one final table
+/* *** DEPRECATED process ***
+ * Merge extracted QC results from before and after cleaning into one table
  * Input: qc_table_raw.txt, qc_pair.txt, qc_unpair.txt
  * Output: qc_table.txt
  */
 
 process MERGE_QCTABLE {
-  publishDir "$params.results/qc_table", mode: 'copy'
+  publishDir "$params.output/qc_table", mode: 'copy'
 
   input:
     path raw_qc_table
-    path trim_qc_table_pair
-    path trim_qc_table_unpair
+    path cleaned_qc_table_pair
+    path cleaned_qc_table_unpair
 
   output:
     path "*qc_table.txt"
   
   """ 
   timestamp=\$(date '+%d%m%y_%H%M%S')
-  paste ${raw_qc_table} ${trim_qc_table_pair} ${trim_qc_table_unpair} > \${timestamp}_qc_table.txt
+  paste ${raw_qc_table} ${cleaned_qc_table_pair} ${cleaned_qc_table_unpair} > \${timestamp}_qc_table.txt
   """
 }
 
+/* *** DEPRECATED process ***
+ * Merge all samples' FastQC results into one table
+ * Input: [samplename]_raw.txt
+ * Output: qc_table_raw.txt
+ */
+
+process CREATE_QCTABLE_BEFORE_TRIM {
+  publishDir "$params.output/qc_table", mode: 'copy'
+  input:
+  path all_data
+
+  output:
+  path "qc_raw.txt"
+
+  """
+  cat  ${all_data} | sort > qc_table
+  cat <(echo "${params.qc_header}") qc_table > qc_raw.txt
+  """
+}

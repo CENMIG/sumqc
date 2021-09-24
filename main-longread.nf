@@ -18,56 +18,71 @@
 nextflow.enable.dsl = 2
 
 /*
- * Define the default parameters
+ * Define the default parameter values
  */
+
 // paths & inputs
 baseDir          = "$HOME"
-params.input     = "$baseDir/workspace/data/*.fastq"
-//params.input     = "$baseDir/workspace/longread/PacBio_RS_II/*.fq.gz"
-params.results   = "$baseDir/workspace/results"
-params.longQC    = "$baseDir/prog/LongQC/longQC.py"
-params.filtLong  = "$baseDir/prog/Filtlong/bin/filtlong"
-// parameters for trimming
-params.platform = "pb-rs2"
-params.qc_option = "--min_length 10000 --keep_percent 90"
+// Input fastq in glob pattern format 
+params.input     = "$PWD/*.fastq.gz"
+// Output directory
+params.output    = "$PWD/output"
 
-//params.qc_header = "Filename\tTotalSeq\tLength\t%GC\tavgSeqQual(min,max)"
-//params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
+// Sequencing platform
+params.platform  = "pb-rs2"
+
+// Cleaning options following Trimmomatic option format 
+params.qc_options = "--min_length 10000 --keep_percent 90"
+
+time = new Date()
 
 log.info """\
 ========================================================
-Raw reads: $params.input
-Results directory : $params.results
-Trimming option (for trimmomatic): $params.qc_option
+DATE: $time
+Path to sequence reads: $params.input
+Output directory: $params.output
+Sequencing platform: $params.platform
+Filtlong cleaning options: $params.qc_options
 ========================================================
 """
 
 
 /* 
  * Import modules 
+ * from ./mod-longread.nf
  */
+
 include { 
-    QC_RAW_DATA
-    EXTRACT_RAW_QC
-    CREATE_RAW_QC_TABLE
-    CLEANING
-    QC_CLEAN_DATA
-    EXTRACT_CLEAN_QC
-    CREATE_QC_TABLE
+    LONGQC_BEFORE_CLEANING
+    EXTRACT_LONGQC_BEFORE_CLEANING
+    CREATE_QCTABLE_BEFORE_CLEANING
+    CLEAN
+    LONGQC_AFTER_CLEANING
+    EXTRACT_LONGQC_AFTER_CLEANING
+    CREATE_QCTABLE
 } from './mod-longread.nf'
 
 
 /* 
- * Main pipeline steps
+ * Main pipeline 
  */
+
 workflow {
+    // input: long reads fastq file
     inputChannel=Channel.fromPath(params.input)
-    QC_RAW_DATA(inputChannel,params.platform)
-    QC_RAW_DATA.out.view()
-    EXTRACT_RAW_QC(inputChannel,QC_RAW_DATA.out)
-    CREATE_RAW_QC_TABLE(EXTRACT_RAW_QC.out.collect())
-    CLEANING(inputChannel,params.qc_option)
-    QC_CLEAN_DATA(CLEANING.out,params.platform)
-    EXTRACT_CLEAN_QC(CLEANING.out,QC_CLEAN_DATA.out)
-    CREATE_QC_TABLE(CREATE_RAW_QC_TABLE.out,EXTRACT_CLEAN_QC.out.collect())
+    
+    // Step 1: Input fastq and quality check before cleaning 
+    LONGQC_BEFORE_CLEANING(inputChannel,params.platform)
+    EXTRACT_LONGQC_BEFORE_CLEANING(inputChannel,LONGQC_BEFORE_CLEANING.out)
+    CREATE_QCTABLE_BEFORE_CLEANING(EXTRACT_LONGQC_BEFORE_CLEANING.out.collect())
+
+    // Step 2: Read cleaning 
+    CLEAN(inputChannel,params.qc_options)
+
+    // STEP 3: Quality check after cleaning
+    LONGQC_AFTER_CLEANING(CLEAN.out,params.platform)
+    EXTRACT_LONGQC_AFTER_CLEANING(CLEANING.out,LONGQC_AFTER_CLEANING.out)
+
+    // STEP 4: Create QC table
+    CREATE_QCTABLE(CREATE_QCTABLE_BEFORE_CLEANING.out,EXTRACT_LONGQC_AFTER_CLEANING.out.collect())
 }

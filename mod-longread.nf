@@ -1,24 +1,34 @@
+/*
+ * Process definitions
+ */
 
-//QC the raw data 
-process QC_RAW_DATA {
-    publishDir "$params.results/longQC", mode: 'copy'
+/*
+ * Read QC before cleaning using LongQC
+ * Input: Raw reads
+ * Output: qc_raw folder 
+ */
+
+process LONGQC_BEFORE_CLEANING {
+    publishDir "$params.output/longQC", mode: 'copy'
     input:
         path raw_fastq
         val platform
     output:
 	  path qc_raw 
 
-// path to longQC.py consider to put it in main folder?
-// add option for -x argument (pb-rs2 pb-sequel, ont-ligation, ont-rapid, ont-1dsq)
     shell:
    ''' 
     /usr/bin/env python3 !{baseDir}/prog/LongQC/longQC.py sampleqc -x !{platform} -o qc_raw !{raw_fastq} 
    '''
 }
 
+/*
+ * Extract LongQC results 
+ * Input: Path to LongQC results 
+ * Output: [samplename]_rawqc
+ */
 
-// Extract the QC raw data
-process EXTRACT_RAW_QC {
+process EXTRACT_LONGQC_BEFORE_CLEANING {
     stageInMode "symlink"
     input:
         path raw_id
@@ -36,9 +46,14 @@ process EXTRACT_RAW_QC {
     """
 }
 
-//Concatenate to table
-process CREATE_RAW_QC_TABLE {
-    publishDir "$params.results/qc_table", mode: 'copy'
+/*
+ * Create QC table before cleaning
+ * Input: Extracted LongQC results
+ * Output: qc_raw.txt
+ */
+
+process CREATE_QCTABLE_BEFORE_CLEANING {
+    publishDir "$params.output/qc_table", mode: 'copy'
     input:
         path qc_raw
     output: 
@@ -50,25 +65,35 @@ process CREATE_RAW_QC_TABLE {
     
     """
 }
-// Cleaning data
-process CLEANING {
-    publishDir "$params.results/cleaned_fastq", mode: 'copy'
+
+/*
+ * Cleaning 
+ * Input: Raw reads
+ * Output: "[samplename].fq.gz
+ */
+
+process CLEAN {
+    publishDir "$params.output/cleaned_fastq", mode: 'copy'
     input:
         path raw_fastq
-        val qc_option
+        val qc_options
     output:
         path "*.fq.gz"
 
     shell:
     ''' 
-    !{baseDir}/prog/Filtlong/bin/filtlong !{qc_option} !{raw_fastq} | gzip > !{raw_fastq.baseName}_cleaned.fq.gz
+    !{baseDir}/prog/Filtlong/bin/filtlong !{qc_options} !{raw_fastq} | gzip > !{raw_fastq.baseName}_cleaned.fq.gz
     '''
 }
 
+/*
+ * Read QC after cleaning using LongQC
+ * Input: Raw reads
+ * Output: qc_raw folder 
+ */
 
-// QC cleaned data
-process QC_CLEAN_DATA {
-    publishDir "$params.results/longQC", mode: 'copy'
+process LONGQC_AFTER_CLEANING {
+    publishDir "$params.output/longQC", mode: 'copy'
     input:
         path cleaned_fastq
         val platform
@@ -82,8 +107,13 @@ process QC_CLEAN_DATA {
     '''
 }
 
-// Extract cleaned QC
-process EXTRACT_CLEAN_QC {
+/*
+ * Extract LongQC results after cleaning
+ * Input: Path to LongQC results 
+ * Output: [samplename]_cleanedqc
+ */
+
+process EXTRACT_LONGQC_AFTER_CLEANING {
     stageInMode "symlink"
     input:
         path cleaned_id
@@ -104,9 +134,14 @@ process EXTRACT_CLEAN_QC {
 }
 
 
-//Concatenate to table
-process CREATE_QC_TABLE {
-    publishDir "$params.results/qc_table", mode: 'copy'
+/*
+ * Create a QC summary statistics table
+ * Input: qc_raw.txt, qc_cleaned.txt 
+ * Output: qc_table.txt
+ */
+
+process CREATE_QCTABLE {
+    publishDir "$params.output/qc_table", mode: 'copy'
     input:
         path qc_raw
         path qc_cleaned

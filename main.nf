@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020
- * Center for Microbial Genomics, Mahidol University
+ * Pornchai Matangkasombut Center for Microbial Genomics, Department of Microbiology, Faculty of Science, Mahidol University
  * 
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -19,106 +19,130 @@
 nextflow.enable.dsl = 2
 
 /*
- * Define the default parameters
+ * Define default parameter values
  */
 
 // paths & inputs
-baseDir          = "$HOME"
-// params.input     = "$baseDir/workspace/sumqc/Bp_fq/*_[1,2].[fq,fastq]*"
-params.input     = "$baseDir/github/sumqc/test/input/test*_[1,2].fq.gz"
-// params.results   = "$baseDir/workspace/sumqc/results"
-params.results   = "$baseDir/github/sumqc/test/output"
-// parameters for trimming
-// params.qc_option = "SLIDINGWINDOW:4:30 MINLEN:70"
-params.qc_option = "MINLEN:70"
-params.mergeUnpair = false
+baseDir         = "$HOME"
+// Input fastq in glob pattern format 
+params.input    = "$PWD/*[12].fastq.gz"
+// Output directory
+params.output   = "$PWD/output"
+
+// Read type (true is PE)
 params.SE = false 
 
-params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)"
-params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead"
+// Merge unpaired F and R reads' stats (PE only)
+// params.mergeUnpaired
+params.mergeUnpaired = false
+
+// cleaning options following Trimmomatic option format
+// params.qc_options **
+params.qc_options = "MINLEN:70"
+
+// dev
+/* params.qc_header = "Filename\tTotalSeq\tPoorQualSeq\tLength\t%GC\tavgSeqQual(min,max)" */
+/* params.trim_header = "BothSurvied\tForwardOnlySurvived\tReverseOnlySurvied\tDroppedRead" */
+time = new Date()
 
 log.info """\
 ========================================================
-Raw reads: $params.input
-Results directory : $params.results
-Trimming option (for trimmomatic): $params.qc_option
+DATE : $time
+Path to sequence reads: $params.input
+Single-end reads: $params.SE
+Output directory : $params.output
+Trimmomatic cleaning options: $params.qc_options
+Unpaired reads' stats merged: $params.mergeUnpaired
 ========================================================
 """
 
 
 /* 
- * Import modules 
+ * Import modules
+ * from ./modules.nf
  */
 include { 
-  FASTQC_BEFORE_TRIM_SE;
-  FASTQC_BEFORE_TRIM_PE;
-  EXTRACT_FASTQC_BEFORE_TRIM;
-  MULTIQC_FASTQC_BEFORE_TRIM;
-  TRIM_SE;
-  TRIM_PE;
+  FASTQC_BEFORE_CLEANING_SE;
+  FASTQC_BEFORE_CLEANING_PE;
+  EXTRACT_FASTQC_BEFORE_CLEANING;
+  MULTIQC_BEFORE_CLEANING;
+  CLEAN_SE;
+  CLEAN_PE;
   EXTRACT_TRIM_LOG;
   CREATE_TRIM_SUMMARY_TABLE;
-  FASTQC_AFTER_TRIM_SE;
-  FASTQC_AFTER_TRIM_PE;
-  EXTRACT_FASTQC_AFTER_TRIM;
-  FINALISE_QCTABLE;
-  MULTIQC_FASTQC_AFTER_TRIM;
-  MERGE_UNPAIRED_READ;
+  FASTQC_AFTER_CLEANING_SE;
+  FASTQC_AFTER_CLEANING_PE;
+  EXTRACT_FASTQC_AFTER_CLEANING;
+  CREATE_QCTABLE;
+  MULTIQC_AFTER_CLEANING;
+  MERGE_UNPAIRED_READS;
 } from './modules.nf' 
 
 
 /* 
- * Main pipeline steps
+ * Main pipeline 
  */
  
 workflow {
-  // input: paired-end reads
-    if (params.SE) {
-        reads = Channel.fromPath(params.input)
-        FASTQC_BEFORE_TRIM_SE(reads).set { FASTQC_BEFORE_TRIM }
-    } else {
-        reads = Channel.fromFilePairs(params.input)
-        FASTQC_BEFORE_TRIM_PE(reads).set { FASTQC_BEFORE_TRIM }
-    }
-
+  // input: single/paired-end reads
   // STEP 1: Quality check before cleaning
-  EXTRACT_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.flatten().collect())
-
-  // STEP 2: Cleaning
-  if (params.SE){
-      TRIM_SE(reads, params.qc_option).set { TRIM }
-      EXTRACT_TRIM_LOG(TRIM_SE.out[1])
-      CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
-      FASTQC_AFTER_TRIM_SE(TRIM_SE.out[0]).set { FASTQC_AFTER_TRIM }
+  if (params.SE) {
+      reads = Channel.fromPath(params.input)
+      FASTQC_BEFORE_CLEANING_SE(reads).set { FASTQC_BEFORE_CLEANING }
   } else {
-      TRIM_PE(reads, params.qc_option).set { TRIM }
-      EXTRACT_TRIM_LOG(TRIM_PE.out[2])
+      reads = Channel.fromFilePairs(params.input)
+      FASTQC_BEFORE_CLEANING_PE(reads).set { FASTQC_BEFORE_CLEANING }
+  }
+
+  MULTIQC_BEFORE_CLEANING(FASTQC_BEFORE_CLEANING.collect())
+  EXTRACT_FASTQC_BEFORE_CLEANING(FASTQC_BEFORE_CLEANING.flatten().collect())
+
+  // STEP 2a: SE read cleaning and QCing
+  if (params.SE){
+      CLEAN_SE(reads, params.qc_options).set { CLEAN }
+      
+      // extract TRIM log 
+      EXTRACT_TRIM_LOG(CLEAN_SE.out[1])
       CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
       
-      // STEP 3: Quality check after cleaning
-      if(params.mergeUnpair) {
-        MERGE_UNPAIRED_READ(TRIM_PE.out[1])
-        FASTQC_AFTER_TRIM_PE(
-          TRIM_PE.out[0],
-          MERGE_UNPAIRED_READ.out
-          ).set { FASTQC_AFTER_TRIM }
+      // QC cleaned reads 
+      FASTQC_AFTER_CLEANING_SE(CLEAN_SE.out[0]).set { FASTQC_AFTER_CLEANING }
 
-      } else{
-        FASTQC_AFTER_TRIM_PE(
-          TRIM_PE.out[0],
-          TRIM_PE.out[1]
-        ).set { FASTQC_AFTER_TRIM }
+  } else {
+  // STEP 2b: PE read cleaning and QCing
+      CLEAN_PE(reads, params.qc_options).set { CLEAN }
+      EXTRACT_TRIM_LOG(CLEAN_PE.out[2])
+      CREATE_TRIM_SUMMARY_TABLE(EXTRACT_TRIM_LOG.out.collect())
+      
+      // QC cleaned reads
+      // Merge unpaired F and R reads' stats (PE only)
+      if(params.mergeUnpaired) {
+          //MERGE_UNPAIRED_READS
+        MERGE_UNPAIRED_READS(CLEAN_PE.out[1])
+        FASTQC_AFTER_CLEANING_PE(
+          CLEAN_PE.out[0],
+          MERGE_UNPAIRED_READS.out
+          ).set { FASTQC_AFTER_CLEANING }
+      } else {
+        FASTQC_AFTER_CLEANING_PE(
+          CLEAN_PE.out[0],
+          CLEAN_PE.out[1]
+        ).set { FASTQC_AFTER_CLEANING }
       }
   }
-  EXTRACT_FASTQC_AFTER_TRIM(
-    FASTQC_AFTER_TRIM.flatten().collect()
-  )
-  FINALISE_QCTABLE(
-    EXTRACT_FASTQC_BEFORE_TRIM.out,
-    EXTRACT_FASTQC_AFTER_TRIM.out,
+
+  // STEP 3: Pooling FastQC results together using MultiQC 
+  MULTIQC_AFTER_CLEANING(FASTQC_AFTER_CLEANING.collect())
+
+  // STEP 4: Quality check after cleaning
+  EXTRACT_FASTQC_AFTER_CLEANING(FASTQC_AFTER_CLEANING.flatten().collect())
+
+  // STEP 5: Summarising the results
+  CREATE_QCTABLE(
+    EXTRACT_FASTQC_BEFORE_CLEANING.out,
+    EXTRACT_FASTQC_AFTER_CLEANING.out,
     CREATE_TRIM_SUMMARY_TABLE.out
   )
-  MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.collect())
   
 }
 
